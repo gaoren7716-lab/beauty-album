@@ -1,0 +1,12 @@
+# 依赖：jsdom 只在跑界面冒烟时需要，本地 npm i 即可，不进仓库
+node_modules/
+
+# 备份与临时件
+*.bak
+*.tmp
+/tmp/
+
+# 系统噪声
+.DS_Store
+Thumbs.db
+desktop.ini

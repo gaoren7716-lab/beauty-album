@@ -1,0 +1,13 @@
+# 全库强制 LF。
+# 本库之前踩过一次：Python 写文件把 LF 变 CRLF，
+# 结果 index.html 里按 `<script>\n` 切的正则全部失配 —— 不报错，只是静默漏匹配。
+# Windows 默认 autocrlf=true 会在检出时把 LF 换成 CRLF，等于把这个坑常态化，
+# 所以这里显式钉死：仓库里存 LF，工作区也一律 LF。
+* text=auto eol=lf
+
+# 图片是二进制，不做任何换行转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary

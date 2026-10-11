@@ -1,0 +1,3436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>美人画册 · 离线画廊工作台</title>
+<style>
+/* ============================================================
+ * 深色主题。固定深色，不跟 prefers-color-scheme。
+ * 这个库的定位就是「在 IDE 里双击打开」，IDE 主题是暗的，
+ * 跟着系统走会出现白底闪一下再变暗 —— 读代码的人会被闪到。
+ * 固定深色还省掉一整套变量覆写。
+ * ============================================================ */
+:root{
+  --bg:#0d0f12; --panel:#14171c; --panel2:#1a1e25; --panel3:#222833;
+  --ink:#e8eaef; --ink2:#9aa3b0; --ink3:#6b7480;
+  --line:#272d36; --line2:#333a45;
+  --accent:#d9a05b; --accent-ink:#1a1206; --accent-soft:#2a2118;
+
+  /* 身份层 / 内容层：正交两轴在界面上唯一的颜色编码。
+     全站任何地方出现「这个面是谁给的」，都用这两个颜色回答。
+     身份层取青、内容层取琥珀 —— 两色在暗底上距离足够远，
+     不会与状态色或风险色混淆。 */
+  --ident:#5fb3c9; --ident-soft:#16262b; --ident-line:#2c4e57;
+  --content:#d9a05b; --content-soft:#2a2118; --content-line:#5a4526;
+
+  /* 状态机四档。written 是默认档，必须能被一眼认出 ——
+     它意味着「写得通，但没人验证过它在模型上真的出这个效果」。 */
+  --st-collected:#7c8794; --st-written:#6fa8dc;
+  --st-tested:#7bbf7b;  --st-reviewed:#5fce85;
+
+  /* 风险四档 */
+  --rk-none:#6b7684; --rk-lookalike:#d9a05b;
+  --rk-identity:#e06c75; --rk-sensitive:#d08770;
+
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Cascadia Mono",monospace;
+  --r:9px;
+  /* 原生控件（输入框 / 下拉 / 滚动条 / 日历）跟着深色走。
+     不写这一行，Chrome 与 Edge 会给表单控件一套白底黑字的系统配色，
+     深色页面上就出现一个刺眼的白框 —— 而它偏偏是「用来输入的那一个」。 */
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font:13.5px/1.62 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{margin:0}
+code,.mono{font-family:var(--mono)}
+/* 表单控件统一深色底。font:inherit 不能省 ——
+   不继承的话 textarea 会退回浏览器默认的等宽小字，
+   跟旁边的正文不是一套字号，看着像两个界面拼起来的。 */
+input,textarea,select{
+  background:#0e1116;color:var(--ink);border:1px solid var(--line2);
+  border-radius:6px;padding:5px 8px;font:inherit;
+}
+input:focus,textarea:focus,select:focus{outline:none;border-color:#4a3a22}
+/* 需求输入框：写一句话的地方要给足高度。
+   rows=4 的框写完三行就得在框里上下滚，
+   边写边看不全自己写过什么 —— 于是人会下意识把需求压成半句，
+   而需求越短，自动配的命中越少。最小高度按「五行的量」给。 */
+.cneed{width:100%;min-height:168px;resize:vertical;line-height:1.85;padding:10px 11px}
+
+/* ---------- 顶栏 ---------- */
+header{background:var(--panel);border-bottom:1px solid var(--line);padding:11px 18px 0}
+.hd{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.hd h1{font-size:16.5px;letter-spacing:.4px;display:flex;align-items:baseline;gap:8px}
+.hd h1 .tag{
+  font:10px/1.6 var(--mono);letter-spacing:1.6px;color:var(--accent);
+  background:var(--accent-soft);border:1px solid #4a3a22;border-radius:4px;padding:1px 7px;
+}
+.hd .sub{color:var(--ink2);font-size:12px}
+.hd .spacer{flex:1}
+.hd .stamp{font:11px var(--mono);color:var(--ink3)}
+.hd .stamp b{color:var(--accent)}
+
+/* 姓名策略横幅：本库最关键的一条方法论选择，常驻不折叠。
+   它是「读这个页面里的任何一条提示词之前就该知道的事」，
+   所以放顶栏而不是放进某个设置页。 */
+.policy{
+  margin:10px 0 0;padding:9px 12px;border-radius:var(--r);
+  background:linear-gradient(90deg,#2a1a1c,#241d20);
+  border:1px solid #5a2f33;border-left:3px solid var(--rk-identity);
+  display:flex;gap:10px;align-items:flex-start;
+}
+.policy .tag{
+  flex:0 0 auto;font:10px/1.6 var(--mono);letter-spacing:1px;
+  color:#f0b8bb;background:#3a2124;border:1px solid #6a3a3f;border-radius:4px;padding:2px 7px;
+}
+.policy .tx{flex:1;min-width:0;font-size:12.5px;color:#f2dcdd;line-height:1.66}
+.policy .tx b{color:#fff}
+.policy .tx .sub2{color:#c9a4a6;font-size:11.5px;display:block;margin-top:2px}
+
+/* 库存条：全部现算，一个数字都不写死。
+   写死的数字在改库那天就开始骗人，而「库存」恰恰是最会变的一项。 */
+.inv{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;margin:10px 0 0;padding-bottom:9px}
+
+.cfgbar{margin:2px 0 8px}
+/* 精品出图轴一的段折叠。summary 对齐 tghead 的视觉分量；
+   当前选中所在段自动展开，选完收起。 */
+.bseg{margin-bottom:5px}
+.bseg summary{
+  list-style:none;cursor:pointer;user-select:none;
+  background:var(--panel2);border:1px solid var(--line);border-radius:6px;
+  padding:6px 10px;font-size:12px;color:var(--ink2);
+}
+.bseg summary::-webkit-details-marker{display:none}
+.bseg summary:hover{color:var(--ink);border-color:var(--line2)}
+.bseg summary small{font:10px var(--mono);color:var(--ink3);margin-left:7px}
+.bseg[open] summary{border-color:var(--line2);color:var(--ink)}
+.bseg .segbody{padding:8px 2px 2px}
+.gfoot .sp{flex:1}
+/* 卡片上的一键复制：单独一行，不跟 gfoot 挤在一起 ——
+   挤在一行时它会跟类目/风险徽章抢空间，窄卡片下按钮被压成两行，
+   看着像坏了。 */
+/* 复制设置条：把「复制依赖的三个隐藏状态」摆到画廊页面上 */
+.gset{
+  display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin:8px 0 2px;
+  padding:7px 9px;border:1px solid var(--line);border-radius:var(--r);
+  background:var(--panel2);font-size:11px;color:var(--ink3);
+}
+.gset .lb{font-weight:600;color:var(--ink2)}
+.gset .sp{flex:1;min-width:4px}
+.gset select{
+  max-width:190px;padding:2px 6px;border-radius:5px;cursor:pointer;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink2);
+  font:11px inherit;
+}
+.gact{display:flex;align-items:center;gap:6px;margin-top:7px}
+/* min-width:0 不能省：flex 子项默认 min-width:auto，
+   不归零的话这行文字会把卡片撑宽，网格里出现一列特别宽的卡。 */
+.gact .what{
+  font:10px var(--mono);color:var(--ink3);min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+/* 两轴说明单独一行：跟两个按钮挤在一行时，196px 的卡片里
+   它会被挤成省略号，而「配了哪个主题」恰恰是最不能省的那一段。 */
+.gwhat{
+  margin-top:5px;font:10px var(--mono);color:var(--ink3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.legend{
+  display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 2px;font-size:10.5px;color:var(--ink3);
+}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+
+/* ---------- 详情面板 ---------- */
+.dhead{padding:11px 12px;border-bottom:1px solid var(--line);background:var(--panel2);border-radius:var(--r) var(--r) 0 0}
+.dtitle{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.dtitle b{font-size:16px;letter-spacing:.3px}
+.dtitle .en{font:11px var(--mono);color:var(--ink3)}
+.dtitle .sp{flex:1}
+.dbadges{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.kv{margin:7px 0 0;font-size:11.5px;line-height:1.6}
+.kv .k{color:var(--ink3);margin-right:5px}
+.kv .v{color:var(--ink2)}
+.note{
+  margin-top:7px;padding:6px 8px;border-radius:6px;font-size:11.5px;line-height:1.62;
+  background:#151a1c;border:1px solid var(--line);color:var(--ink2);
+  border-left:2px solid var(--line2);
+}
+.note.warn{background:rgba(217,160,91,.07);border-left-color:var(--rk-lookalike);color:#e2c79b}
+.note.hard{background:rgba(224,108,117,.07);border-left-color:var(--rk-identity);color:#eebcc0}
+.note b{color:var(--ink)}
+.named{
+  margin-top:7px;padding:6px 8px;border-radius:6px;font-size:11.5px;
+  background:#1c1a1a;border:1px dashed #4a4040;color:var(--ink2);
+  display:flex;gap:7px;align-items:baseline;flex-wrap:wrap;
+}
+.named .nt{font-size:10px;color:#b98d8f;letter-spacing:.5px;flex:0 0 auto;
+  border:1px solid #4a3a3a;border-radius:3px;padding:0 5px;background:#241d1d}
+.named .nz{color:var(--ink);font-weight:600}
+
+/* 八面逐面展开：身份层与内容层必须一眼分得开。
+   左边那根色条就是「这一面来自编号还是主题」的全部答案。 */
+.face{
+  display:grid;grid-template-columns:4px 1fr;gap:8px;align-items:stretch;
+  border:1px solid var(--line);border-radius:7px;margin-top:6px;overflow:hidden;background:#12151a;
+}
+.face .bar{background:var(--line2)}
+.face.id .bar{background:var(--ident)}
+.face.mu .bar{background:var(--content)}
+.face .fin{padding:6px 8px 7px 2px;min-width:0}
+.face .fh{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.face .fk{font-size:11.5px;font-weight:650}
+.face.id .fk{color:var(--ident)}
+.face.mu .fk{color:var(--content)}
+.face .from{
+  font:9.5px/1.5 var(--mono);border-radius:3px;padding:0 5px;
+  border:1px solid var(--line2);color:var(--ink3);background:var(--panel3);
+}
+.face.id .from{border-color:var(--ident-line);color:#8fc4d4;background:var(--ident-soft)}
+.face.mu .from{border-color:var(--content-line);color:#d9b988;background:var(--content-soft)}
+.face .fv{font-size:11.5px;color:var(--ink2);line-height:1.6;margin-top:3px}
+.face .ft{font:10px/1.5 var(--mono);color:var(--ink3);margin-top:2px}
+.face.gap{border-style:dashed;border-color:#4a3a2a;background:#17140f}
+.face.gap .fk{color:var(--rk-lookalike)}
+.fgroup{
+  display:flex;align-items:baseline;gap:8px;margin:13px 0 4px;
+  font:10px/1.6 var(--mono);letter-spacing:1px;color:var(--ink3);
+}
+.fgroup .ln{flex:1;height:1px;background:var(--line)}
+.fgroup.id b{color:var(--ident);font-weight:400}
+.fgroup.mu b{color:var(--content);font-weight:400}
+
+/* 用法指引：never 一段必须最显眼。
+   「该改哪一层」这件事不写出来，用户就会去改骨相 ——
+   而改完他手里的编号就不存在了。 */
+.guide{margin-top:9px;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.guide > div{padding:6px 9px;font-size:11.5px;line-height:1.6;display:flex;gap:8px}
+.guide .gk{flex:0 0 54px;font:10px/1.7 var(--mono);letter-spacing:1px}
+.guide .gv{flex:1;min-width:0;color:var(--ink2)}
+.guide .keep{background:#141c18}.guide .keep .gk{color:var(--st-tested)}
+.guide .swap{background:#161a20}.guide .swap .gk{color:var(--ink2)}
+.guide .never{background:#241a1b;border-top:1px solid #3a2427}
+.guide .never .gk{color:var(--rk-identity)}
+.guide .never .gv{color:#f0c8cb}
+.guide .hint{padding:6px 9px;border-top:1px solid var(--line);background:var(--panel2);
+  font-size:11.5px;color:var(--ink2);line-height:1.62}
+
+/* ---------- 轴工作台 ---------- */
+.axis{border:1px solid var(--line);border-radius:7px;background:#12151a;margin-bottom:9px}
+.axis > .ah{
+  display:flex;align-items:baseline;gap:8px;padding:6px 9px;
+  border-bottom:1px solid var(--line);font-size:11.5px;
+}
+.axis > .ah .ax{font:10px/1.6 var(--mono);letter-spacing:1.2px;color:var(--ink3);flex:0 0 auto}
+.axis > .ah b{font-weight:650}
+.axis > .ah .d{font-size:10.5px;color:var(--ink3);margin-left:auto;text-align:right}
+.axis > .ah i{font-style:normal;font:10.5px var(--mono);color:var(--ink3)}
+/* 常显位：只放当前选中的那一张，不横向滚动 ——
+   横滚的话「我选了谁」这件事可能滚出视野。 */
+.axis .strip{display:flex;gap:4px;padding:8px 9px}
+
+/* ---------- 编号网格卡 ----------
+   多行多列，代替单行横滚。
+   编号在上（等宽字体）、名字在下截断、右上角色点标气质区——
+   网格里竖排信息比横排胶囊好扫：列对齐后编号形成一条竖线，
+   眼睛沿竖线扫比沿横线找快得多。
+
+   卡片尺寸是按「手指点得到」定的，不是按「信息塞得下」定的：
+   112px 宽 × 三行高的卡，编号与名字挤在一起，
+   选号时常常点中隔壁 —— 而这种错位不会报错，
+   只会让人以为「我选了这个，出来的是那个人」。
+   所以最小宽给到 150px、内边距给到 9px、整卡不低于 54px。 */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:7px}
+.pcard{
+  border:1px solid var(--line);background:var(--panel2);color:var(--ink2);
+  border-radius:8px;padding:9px 11px;cursor:pointer;font-family:inherit;
+  display:flex;flex-direction:column;gap:3px;min-width:0;min-height:54px;text-align:left;
+}
+.pcard .n{font:700 13px var(--mono);display:flex;align-items:center;gap:6px}
+.pcard .n .tw{width:12px;height:7px;border-radius:2px;flex:0 0 auto}
+.pcard .z{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pcard .rgx{margin-left:auto;font:10px var(--mono);color:var(--ink3);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;max-width:66px}
+.pcard:hover{border-color:var(--accent);color:var(--ink)}
+.pcard.on{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.pcard.on .z{font-weight:600}
+/* 网格容器：给一个看得见边界的高度（约 5 行），
+   里面滚动距离短、位置感强 —— 比 80 卡全展开的长页好定位。 */
+.pgridbox{max-height:430px;overflow:auto;padding:2px}
+
+/* ---------- 主题网格卡 ----------
+   与编号卡同一套尺寸语言：同样的最小宽、同样的内边距、同样的行结构。
+   两套选择器长得一样，「选编号」和「选主题」才是同一个动作，
+   否则每次换一页都要重新认一遍控件。
+   与编号卡的差别只在配色：编号是身份层（琥珀），主题是内容层（青）。
+   主题名在上、编号在下 —— 主题是先按名字找的。 */
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:7px}
+.tcard{
+  border:1px solid var(--line);background:var(--panel2);color:var(--ink2);
+  border-radius:8px;padding:8px 11px;cursor:pointer;font-family:inherit;
+  display:flex;flex-direction:column;gap:2px;min-width:0;min-height:50px;text-align:left;
+}
+.tcard .tz{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tcard .tn2{font:10.5px var(--mono);color:var(--ink3)}
+.tcard:hover{border-color:var(--content);color:var(--ink)}
+.tcard.on{background:var(--content-soft);border-color:var(--content);color:#f0d3a6}
+.tcard.on .tz{font-weight:600}
+.tcard.on .tn2{color:#c3a077}
+/* 主题容器比编号容器矮一点：40 个主题比 80 个编号少一半，
+   给一样的高度会造成「还有一半没显示」的错觉。 */
+.tgridbox{max-height:340px;overflow:auto;padding:2px}
+.tghead{font:10px/1.6 var(--mono);letter-spacing:1px;color:var(--ink3);
+  width:100%;margin-top:5px;padding-bottom:2px;border-bottom:1px solid var(--line)}
+.modes{display:flex;gap:5px;flex-wrap:wrap}
+/* 门类 / 模式按钮：它是轴上的一格，点和编号卡是同一个动作，
+   所以内边距与网格卡同一档（不给它单独一套「小一号」的尺寸）。 */
+.mbtn{
+  border:1px solid var(--line);background:var(--panel2);color:var(--ink2);
+  border-radius:8px;padding:8px 12px;cursor:pointer;font-family:inherit;text-align:left;min-height:50px;
+}
+.mbtn:hover{border-color:var(--accent);color:var(--ink)}
+.mbtn.on{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.mbtn b{display:block;font-size:12.5px}
+.mbtn i{font-style:normal;font-size:10px;color:var(--ink3);display:block;margin-top:1px;line-height:1.45}
+.mbtn.on i{color:#bda079}
+.muse{
+  margin-top:6px;padding:6px 8px;border-radius:6px;font-size:11.5px;line-height:1.6;
+  background:#12151a;border:1px solid var(--line);color:var(--ink2);
+}
+.muse b{color:var(--accent)}
+
+/* 出词区 */
+.out{margin-top:9px;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:#0b0d11}
+.out .oh{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--panel2);border-bottom:1px solid var(--line)}
+.out .oh .t{font:11px var(--mono);color:var(--accent);letter-spacing:.5px}
+.out .oh .sp{flex:1}
+/* 出词框：给足高度再限高。
+   提示词动辄三四百字，框只有三行高的话
+   人得在框里滚着检查自己复制的是不是这一条 ——
+   而「复制错了」是这一页最难自查的失败（粘贴出去才发现）。
+   最小高度保证短词也有可点的整块区域，最大高度保证长词不把页面撑穿。 */
+.out .ob{padding:12px 13px;font:12.5px/1.85 var(--mono);color:#c7cfdb;white-space:pre-wrap;word-break:break-word;
+  min-height:170px;max-height:520px;overflow:auto}
+.out .of{display:flex;gap:6px;flex-wrap:wrap;padding:7px 10px;border-top:1px solid var(--line);background:var(--panel2)}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tab{
+  border:1px solid var(--line);background:var(--panel2);color:var(--ink2);
+  border-radius:999px;padding:3px 11px;font-size:11.5px;cursor:pointer;font-family:inherit;
+}
+.tab:hover{border-color:var(--accent);color:var(--ink)}
+.tab.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.btn{
+  background:var(--panel2);border:1px solid var(--line);color:var(--ink2);
+  padding:4px 10px;border-radius:6px;font-size:11.5px;cursor:pointer;font-family:inherit;
+}
+.btn:hover{color:var(--ink);border-color:var(--line2)}
+/* ---------- 复制按钮按「复制的是什么」分色 ----------
+   出词区里有两个复制按钮，文案一个写「复制本套」一个写「复制负面词」，
+   看着分得清，但两者并排放在同一行、长得一模一样，
+   手快的人照样会点错 —— 而点错的后果是
+   把「不要文字」当成正面词粘进 SD 的 Positive 框。
+   颜色是比文案更快的一层判据，所以分色：
+
+     琥珀 p   = 正面词（要画什么）
+     红   neg = 负面词（不要画什么）
+     青   k   = 别的操作（选中 / 送去精调），不复制任何东西
+
+   红取风险色 --rk-identity 一系：负面词和「这条有风险」在语义上同源
+   —— 都是「不要」。复用同一个色系，用户只需要记一次。 */
+.btn.p{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.p:hover{opacity:.9}
+.btn.neg{border-color:#5f3236;color:#eebcc0;background:#2a1a1c;font-weight:600}
+.btn.neg:hover{border-color:var(--rk-identity);color:#fff}
+.btn.k{border-color:var(--ident-line);color:#8fc4d4}
+.btn:disabled{opacity:.45;cursor:default}
+.chips{
+  display:flex;gap:5px;flex-wrap:wrap;padding:7px 10px;border-top:1px solid var(--line);
+}
+.chips span{font:10.5px var(--mono);color:var(--ink2);background:#12151a;border:1px solid var(--line);border-radius:4px;padding:1px 6px}
+.warns{display:flex;flex-direction:column;gap:5px;margin-top:8px}
+.warns .w{
+  font-size:11.5px;line-height:1.6;padding:5px 8px;border-radius:5px;
+  background:rgba(224,108,117,.07);border:1px solid #4a2b2f;color:#e5b4b8;
+}
+.warns .w.ok{background:rgba(123,191,123,.06);border-color:#2c4430;color:#b6d6b6}
+
+/* 组图 / 抽卡 */
+.sgrid{display:grid;gap:9px;grid-template-columns:repeat(auto-fill,minmax(258px,1fr))}
+.scard{border:1px solid var(--line);border-radius:7px;background:#12151a;overflow:hidden;display:flex;flex-direction:column}
+.scard .st{display:flex;align-items:baseline;gap:6px;padding:6px 8px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.scard .st .pn{font:11px var(--mono);font-weight:700;color:var(--accent)}
+.scard .st .tn{font-size:11.5px;font-weight:600}
+.scard .st .sp{flex:1}
+.scard .sw{height:5px}
+.scard .sb{padding:7px 8px;font:10.5px/1.62 var(--mono);color:var(--ink2);flex:1;word-break:break-word;
+  display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+.scard .sf{padding:5px 8px;border-top:1px solid var(--line);display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.scard .sdup{font:9.5px var(--mono);color:var(--rk-lookalike);border:1px solid #5c452a;background:#2a2118;border-radius:3px;padding:0 4px}
+.tkbox{border:1px solid var(--line);border-radius:7px;background:#12151a;padding:9px;margin-bottom:10px}
+.tkbox .tl{font:10px/1.6 var(--mono);letter-spacing:1px;color:var(--ink3);margin-bottom:7px}
+.tkstat{display:flex;gap:16px;flex-wrap:wrap;font:11.5px var(--mono);color:var(--ink2)}
+.tkstat div{display:flex;flex-direction:column;gap:1px}
+.tkstat .k{font-size:9.5px;color:var(--ink3);letter-spacing:.5px}
+.tkstat .v b{color:var(--accent)}
+.tkstat .v.warnv b{color:var(--rk-lookalike)}
+.sw2{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11.5px;color:var(--ink2);margin-top:7px}
+.toggle{display:inline-flex;align-items:center;gap:5px;cursor:pointer;user-select:none;
+  border:1px solid var(--line);background:var(--panel2);border-radius:999px;padding:3px 11px;font-size:11.5px;color:var(--ink2)}
+.toggle:hover{border-color:var(--accent);color:var(--ink)}
+.toggle.on{background:var(--ident-soft);border-color:var(--ident-line);color:#a8d6e2}
+.toggle input{display:none}
+
+/* 分级说明表 */
+.tiergrid{display:grid;gap:8px}
+.trow{
+  display:grid;grid-template-columns:64px 1fr;gap:9px;
+  border:1px solid var(--line);border-radius:7px;padding:8px 10px;background:#12151a;
+}
+.trow .tk{
+  font:700 15px/1.2 var(--mono);text-align:center;border-radius:6px;padding:5px 2px;
+  border:1px solid;height:fit-content;
+}
+.trow .tn{font-size:12.5px;font-weight:650;margin-bottom:3px}
+.trow .td{font-size:11.5px;color:var(--ink2);line-height:1.62}
+.trow .tc{font-size:11px;margin-top:4px;padding:3px 7px;border-radius:4px;display:inline-block}
+.distrow{display:flex;align-items:center;gap:8px;font-size:11.5px;margin-top:5px}
+.distrow .dl{flex:0 0 92px;font:11px var(--mono)}
+.distrow .db{flex:1;height:8px;border-radius:4px;background:var(--panel3);overflow:hidden;border:1px solid var(--line)}
+.distrow .db i{display:block;height:100%}
+.distrow .dv{flex:0 0 84px;text-align:right;font:11px var(--mono);color:var(--ink2)}
+
+/* toast */
+.toast{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(8px);
+  background:var(--accent);color:var(--accent-ink);padding:8px 16px;border-radius:20px;
+  font-size:12.5px;font-weight:600;opacity:0;pointer-events:none;transition:.22s;z-index:99;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ---------- 以下规则自 02:30 备份恢复（误删区间回填） ---------- */
+/* 体检覆盖矩阵表格 + 画廊更多筛选折叠（误删回填） */
+.mtx{width:100%;border-collapse:collapse;font-size:11.5px;margin-top:6px}
+.mtx th,.mtx td{border:1px solid var(--line);padding:4px 8px;text-align:left}
+.mtx th{background:var(--panel2);color:var(--ink2);font-weight:400}
+.mtx td.y{color:var(--st-tested)}
+.mtx td.n{color:var(--ink3)}
+.morebox{background:var(--panel2);border:1px dashed var(--line2);border-radius:8px;padding:7px 9px}
+/* ---------- 画廊配图（02:30 后新增，误删回填） ---------- */
+.ggrid.big{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+@media (min-width:1560px){ .ggrid.big{grid-template-columns:repeat(auto-fill,minmax(330px,1fr))} }
+.ggrid.big .gsw{height:360px}
+.ggrid.big .gid{font-size:34px}
+.ggrid.big .gkw{font-size:11px}
+.gpic{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  object-position:50% 22%;z-index:1;background:#0b0e12;cursor:zoom-in}
+.gsw:has(.gpic):not(:has(.nopic))::before{
+  content:"";position:absolute;inset:0;z-index:3;pointer-events:none;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.10);
+  opacity:0;transition:opacity .12s;
+}
+.gcard:hover .gsw:has(.gpic):not(:has(.nopic))::before{opacity:1}
+.gzoom{
+  position:absolute;right:7px;bottom:12px;z-index:4;
+  font:10px/1 var(--mono);color:#fff;background:rgba(0,0,0,.55);
+  border:1px solid rgba(255,255,255,.22);border-radius:4px;padding:3px 5px;
+  opacity:0;transition:opacity .12s;pointer-events:none;
+}
+.gcard:hover .gzoom{opacity:1}
+.gfoot .rg{color:var(--accent);opacity:.85;font-size:10px}
+/* 配图放大浮层（按原始比例完整显示，不裁） */
+.pzimg{
+  display:block;max-width:100%;max-height:64vh;margin:0 auto;
+  border-radius:8px;border:1px solid var(--line2);background:#0b0e12;
+}
+.pzmeta{margin-top:11px}
+.pzrow{display:flex;gap:8px;margin-top:6px;font-size:11.5px;line-height:1.65}
+.pzrow .k{flex:0 0 52px;color:var(--ink3)}
+.pzrow .v{flex:1;min-width:0;color:var(--ink2)}
+.pzrow .v b{color:var(--st-written)}
+.pzrow .v i{color:var(--ink);font-style:normal}
+.invblk{display:flex;flex-direction:column;gap:3px;min-width:0}
+.invblk .k{font-size:10px;color:var(--ink3);letter-spacing:.6px}
+.invblk .v{font:12px/1.5 var(--mono);color:var(--ink)}
+.invblk .v b{color:var(--accent)}
+.invbar{display:flex;height:5px;border-radius:3px;overflow:hidden;width:210px;border:1px solid var(--line2)}
+.invbar i{display:block;height:100%}
+.gaps{color:var(--ink2);font-size:11.5px;line-height:1.55;max-width:430px}
+.gaps b{color:var(--st-written)}
+.gaps .good{color:var(--st-tested)}
+/* ============================================================
+ * 主布局：顶部横排页签 + 全宽内容
+ *
+ * 为什么从「左导航三栏」改成「顶部页签 + 一栏」：
+ * 三栏时主区被压到 430px，48 张卡片一屏只放得下 6 张，
+ * 而画廊的全部价值就是「一眼扫过去」。
+ * 详情改成点开浮层：详情是要细读的，浮层给它整块宽，
+ * 同时它不再长期占着右栏。
+ * 页签全部横排在一行，八个入口都看得见 ——
+ * 藏在左栏里的入口等于不存在，用户不会去点一个看不见的页。
+ * ============================================================ */
+.tabbar{
+  display:flex;gap:6px;padding:8px 18px 0;background:var(--panel);
+  border-bottom:1px solid var(--line);overflow-x:auto;
+  position:sticky;top:0;z-index:20;
+}
+.tabitem{
+  flex:0 0 auto;border:1px solid var(--line);border-bottom:none;background:var(--panel2);
+  color:var(--ink2);border-radius:8px 8px 0 0;padding:6px 13px 7px;cursor:pointer;
+  font:12.5px/1.5 inherit;display:flex;align-items:baseline;gap:6px;white-space:nowrap;
+}
+.tabitem:hover{color:var(--ink);border-color:var(--line2);background:var(--panel3)}
+.tabitem.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.tabitem .n{font:10px var(--mono);opacity:.72}
+.tabitem.on .n{opacity:.85}
+.tabitem .d{font-size:10px;opacity:.66}
+.page{max-width:1720px;margin:0 auto;padding:14px 18px 64px;min-width:0}
+.phead{
+  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 10px;
+  padding-bottom:7px;border-bottom:1px solid var(--line);
+}
+.phead h2{font-size:14px;letter-spacing:.3px}
+.phead .hint{font-size:11.5px;color:var(--ink3);margin-left:auto;text-align:right;max-width:56%}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.panel > h2{
+  margin:0;padding:9px 12px;font-size:12.5px;letter-spacing:.4px;
+  border-bottom:1px solid var(--line);background:var(--panel2);
+  display:flex;align-items:center;gap:8px;
+}
+.body{padding:11px 12px}
+/* ---------- 编号详情浮层 ---------- */
+.mask{
+  position:fixed;inset:0;background:rgba(6,8,11,.68);z-index:80;display:none;
+  align-items:flex-start;justify-content:center;padding:38px 16px;overflow:auto;
+}
+.mask.on{display:flex}
+.cmta{
+  width:100%;min-height:190px;resize:vertical;
+  background:#0e1116;color:var(--ink);border:1px solid var(--line2);
+  border-radius:7px;padding:10px 11px;
+  font:12.5px/1.85 var(--mono);
+}
+.cmta:focus{outline:none;border-color:#4a3a22}
+.sheet{
+  width:100%;max-width:840px;background:var(--panel);border:1px solid var(--line2);
+  border-radius:10px;box-shadow:0 18px 50px rgba(0,0,0,.52);
+  max-height:88vh;display:flex;flex-direction:column;
+}
+.sheet .sh{
+  display:flex;align-items:center;gap:8px;padding:9px 12px;
+  border-bottom:1px solid var(--line);background:var(--panel2);border-radius:10px 10px 0 0;
+  position:sticky;top:0;z-index:2;
+}
+.sheet .sh b{font-size:13px}
+.sheet .sh .hint{font:11px var(--mono);color:var(--ink3)}
+.sheet .sh .sp{flex:1}
+.sheet .sbody{padding:11px 12px 14px;overflow:auto}
+/* ---------- 小按钮：抽卡的锁 / 重抽 / 一键 ---------- */
+.mini{
+  border:1px solid var(--line);background:var(--panel2);color:var(--ink2);
+  border-radius:5px;padding:2px 7px;font-size:10.5px;cursor:pointer;font-family:inherit;
+  white-space:nowrap;
+}
+.mini:hover{color:var(--ink);border-color:var(--accent)}
+.mini.on{background:var(--ident-soft);border-color:var(--ident-line);color:#a8d6e2}
+.mini.p{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.mini.p:hover{opacity:.9}
+/* 画廊卡片上的负面词按钮同色：卡片里两个按钮挤在一行，
+   只靠文案区分时，「复制提示词」和「负面词」在小卡片上很容易点反。 */
+.mini.neg{border-color:#5f3236;color:#eebcc0;background:#2a1a1c;font-weight:600}
+.mini.neg:hover{border-color:var(--rk-identity);color:#fff}
+.lockbar{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+/* ---------- 自定义出图 ---------- */
+.cgrid{display:grid;gap:11px;grid-template-columns:minmax(300px,.86fr) minmax(340px,1.14fr)}
+.cgrid{grid-template-columns:1fr}
+.pick{
+  border:1px solid var(--line);background:var(--panel2);color:var(--ink2);
+  border-radius:6px;padding:4px 9px;font-size:11.5px;cursor:pointer;font-family:inherit;
+  display:flex;align-items:center;gap:6px;
+}
+.pick:hover{border-color:var(--accent);color:var(--ink)}
+.pick.on{background:var(--accent-soft);border-color:var(--accent);color:var(--ink);font-weight:600}
+.pick .z{font-size:11px}
+.pick .n{font:10.5px var(--mono);opacity:.7}
+.hit{
+  margin-top:8px;padding:7px 9px;border-radius:6px;font-size:11.5px;line-height:1.62;
+  background:#12151a;border:1px solid var(--line);color:var(--ink2);
+}
+.hit b{color:var(--accent)}
+.kvline{display:flex;gap:8px;align-items:baseline;font-size:11.5px;margin-top:5px}
+.kvline .k{color:var(--ink3);flex:0 0 66px}
+.kvline .v{color:var(--ink2);flex:1;min-width:0}
+/* ---------- 全部词条 / 体检 ---------- */
+.lxgrid{display:grid;gap:9px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.lxcard{border:1px solid var(--line);border-radius:7px;background:#12151a;padding:8px 10px}
+.lxcard .lh{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.lxcard .lh b{font-size:12px}
+.lxcard .lh .n{font:10px var(--mono);color:var(--ink3)}
+.lxcard .lt{font-size:11.5px;color:var(--ink2);line-height:1.6;margin-top:4px}
+.lxcard .lf{margin-top:6px;display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.matrix{width:100%;border-collapse:collapse;font-size:11.5px}
+.matrix th,.matrix td{border:1px solid var(--line);padding:4px 7px;text-align:left}
+.matrix th{background:var(--panel2);font-weight:600;color:var(--ink2);font-size:11px}
+.matrix td.y{color:var(--st-tested)}
+.matrix td.n{color:var(--ink3)}
+.matrix td.w{color:var(--rk-lookalike)}
+.row{display:flex;gap:8px;align-items:center}
+.row+.row{margin-top:8px}
+.filters{display:flex;flex-wrap:wrap;gap:5px;margin:9px 0 4px;max-height:140px;overflow:auto}
+/* 筛选胶囊也是「要点的东西」：2px 内边距的胶囊只有 ~20px 高，
+   在一排八胶囊里点中目标要靠瞄；给到 5px / 12px 后
+   它和可点的网格卡差不多大，手不用换精度。 */
+.fchip{
+  border:1px solid var(--line);background:var(--panel2);color:var(--ink2);
+  border-radius:6px;padding:5px 11px;font-size:11.5px;cursor:pointer;white-space:nowrap;font-family:inherit;
+}
+.fchip:hover{border-color:var(--accent);color:var(--ink)}
+.fchip.on{background:var(--accent-soft);border-color:#4a3a22;color:var(--accent);font-weight:600}
+.fchip small{font-family:var(--mono);opacity:.72;margin-left:3px}
+.secthead{
+  display:flex;align-items:baseline;gap:8px;margin:16px 0 7px;
+  padding-bottom:5px;border-bottom:1px solid var(--line);
+}
+.secthead:first-child{margin-top:4px}
+.secthead h3{font-size:12.5px}
+.secthead .n{font:11px var(--mono);color:var(--ink3)}
+.secthead .why{font-size:11px;color:var(--ink3);margin-left:auto;text-align:right;max-width:62%}
+.empty{color:var(--ink3);font-size:12px;padding:26px 6px;text-align:center}
+/* ---------- 徽章 ---------- */
+.badge{
+  display:inline-block;font:10px/1.45 var(--mono);border-radius:4px;
+  padding:1px 5px;border:1px solid var(--line2);background:var(--panel3);
+  color:var(--ink2);white-space:nowrap;vertical-align:1px;
+}
+.badge.swritten{border-color:#2f4d66;color:var(--st-written);background:#16232c}
+.badge.stested{border-color:#31573a;color:var(--st-tested);background:#16241a}
+.badge.sreviewed{border-color:var(--st-reviewed);color:#0d0f12;background:var(--st-reviewed);font-weight:700}
+.badge.scollected{border-color:#4a4f58;color:var(--st-collected)}
+/* written 是默认值，必须能被单独拎出来说：
+   「已编写」不等于「已验证」，库里绝大部分条目都停在这一档。 */
+.badge.swritten::after{content:" ·未验证";opacity:.72;font-size:9px}
+/* 授权四档。颜色直接取 RIGHT_TIERS 的 color，不在界面另抄一份。 */
+.tier{
+  display:inline-block;font:10px/1.45 var(--mono);border-radius:4px;
+  padding:1px 6px;border:1px solid;white-space:nowrap;cursor:help;vertical-align:1px;
+}
+.rk{
+  display:inline-block;font:10px/1.45 var(--mono);border-radius:4px;
+  padding:1px 6px;border:1px solid;white-space:nowrap;cursor:help;vertical-align:1px;
+}
+.rk.rk-none{color:var(--rk-none);border-color:#3a4048;background:#181c21}
+.rk.rk-lookalike{color:var(--rk-lookalike);border-color:#5c452a;background:#2a2118}
+.rk.rk-identity{color:var(--rk-identity);border-color:#5f3236;background:#2a1a1c}
+.rk.rk-sensitive{color:var(--rk-sensitive);border-color:#5e3d33;background:#271e1a}
+/* ============================================================
+ * 画廊卡片
+ *
+ * 本库没有一张配图（48 条编号零配图），所以画廊给的是
+ * **卡片化的视觉预览**：一块从 skin 描述与 cat 推断出来的色卡，
+ * 加上八面的关键词。
+ * 为什么推断颜色而不是给每条编号硬编一组色：
+ * 48 组各写一遍颜色 = 48 组永远不会被校验的数据 ——
+ * 改一条描述色卡不会跟着变，而色卡正是用来「一眼扫」的。
+ * 从描述推，描述变了色就跟着变。
+ * ============================================================ */
+.ggrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(196px,1fr))}
+.ggrid{grid-template-columns:repeat(auto-fill,minmax(214px,1fr))}
+.gcard{
+  border:1px solid var(--line);border-radius:var(--r);background:var(--panel2);
+  overflow:hidden;cursor:pointer;display:flex;flex-direction:column;
+}
+.gcard:hover{border-color:var(--line2)}
+.gcard.on{border-color:var(--accent);box-shadow:0 0 0 1px rgba(217,160,91,.34)}
+.gsw{position:relative;height:104px;overflow:hidden}
+.gsw::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.30),transparent 44%,rgba(0,0,0,.42))}
+.gsw .gid{
+  position:absolute;left:9px;top:5px;z-index:2;
+  font:700 27px/1 var(--mono);letter-spacing:-.5px;color:#fff;
+  text-shadow:0 1px 8px rgba(0,0,0,.6);
+}
+.gsw .gid em{font-style:normal;font-size:9.5px;opacity:.72;letter-spacing:1.4px;display:block;font-weight:400;margin-bottom:1px}
+.gsw .gtier{position:absolute;right:7px;top:7px;z-index:2}
+.gstrips{position:absolute;left:0;right:0;bottom:0;z-index:2;display:flex;height:9px}
+.gstrips i{flex:1;display:block}
+.gbody{padding:8px 9px 9px}
+.gname{font-size:13.5px;font-weight:650;letter-spacing:.2px;line-height:1.3}
+.gname em{font-style:normal;font-size:10px;color:var(--ink3);font-family:var(--mono);margin-left:5px;font-weight:400}
+.gkw{display:flex;flex-wrap:wrap;gap:3px;margin-top:6px;min-height:34px}
+.gkw span{
+  font:10px/1.5 var(--mono);padding:1px 5px;border-radius:4px;
+  background:#12151a;border:1px solid var(--line);color:var(--ink2);
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.gkw span.id{color:#8fc4d4;border-color:var(--ident-line);background:var(--ident-soft)}
+.gkw span.mu{color:#d9b988;border-color:var(--content-line);background:var(--content-soft)}
+.gfoot .cat{color:var(--ink2)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hd">
+    <h1>美人画册<span class="tag">BEAUTY ALBUM</span></h1>
+    <span class="sub">编号 = 一个完整可复现的人物配方 · 主题 = 换什么内容 · 两轴正交 · 离线双击即用</span>
+    <span class="spacer"></span>
+    <span class="stamp" id="stamp"></span>
+  </div>
+  <div class="policy">
+    <span class="tag">姓名策略</span>
+    <span class="tx" id="policyTx"></span>
+  </div>
+  <div class="inv" id="inv"></div>
+</header>
+
+<!-- 页签横排放在顶栏下方、内容之上：
+     八个入口必须同时可见。藏在侧栏里的入口等于不存在。 -->
+<nav class="tabbar" id="nav"></nav>
+
+<main class="page">
+  <div class="phead"><h2 id="mainH"></h2></div>
+  <div id="main"></div>
+</main>
+
+<!-- 编号详情浮层。详情是「要细读」的内容，
+     给它整块宽度，而不是长期占着右栏。 -->
+<div class="mask" id="mask">
+  <div class="sheet">
+    <div class="sh">
+      <b>编号详情</b>
+      <span class="hint" id="detHint"></span>
+      <span class="sp"></span>
+      <button class="mini" data-act="detbench">去精品出图</button>
+      <button class="mini" data-act="detclose">关闭</button>
+    </div>
+    <div class="sbody" id="det"></div>
+  </div>
+</div>
+
+<!-- 配图放大浮层。
+     画廊的卡片图区再大也是缩略图：判断骨相、看妆造细节必须看原图。
+     所以点图给的是「原尺寸 + 该条的实测备注」，不是另一张缩略图。
+     没有这个浮层时，想看清一张脸只能先把图存下来再打开——
+     而库里的图存在哪、叫什么名字，本来就不该靠猜。 -->
+<div class="mask" id="pmask">
+  <div class="sheet" style="max-width:900px">
+    <div class="sh">
+      <b id="pzTitle">配图</b>
+      <span class="hint" id="pzHint"></span>
+      <span class="sp"></span>
+      <button class="mini" data-act="pzbench">去精品出图</button>
+      <button class="mini" data-act="pzclose">关闭</button>
+    </div>
+    <div class="sbody" id="pz"></div>
+  </div>
+</div>
+
+<!-- 手动复制兜底框。
+     浏览器拒绝写剪贴板时（file:// 下最常见），光说一句「请手动复制」
+     等于没说 —— 那条 300 多字的词是现算出来的，界面上根本没全文，
+     用户手打不出来。所以兜底一定是「把全文摊开让他 Ctrl+C」。 -->
+<div class="mask" id="cmask">
+  <div class="sheet" style="max-width:660px">
+    <div class="sh">
+      <b>手动复制</b>
+      <span class="hint" id="cmHint"></span>
+      <span class="sp"></span>
+      <button class="mini" data-act="csel">全选</button>
+      <button class="mini" data-act="cclose">关闭</button>
+    </div>
+    <div class="sbody">
+      <div class="note warn" id="cmWhy"></div>
+      <textarea id="cmText" class="cmta" readonly spellcheck="false"></textarea>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- script 顺序必须与 tools/_load.js 的 ORDER 一致。
+     rights.js 在 album-kit.js 之前：album-kit 里的
+     `var RIGHTS = window.RIGHTS || null` 在浏览器分支下
+     取的就是 rights.js 挂上的那个全局。顺序反了不会报错，
+     只是 RIGHTS 退化成 data-core 里的空容器，
+     而表现是「授权徽章全空但页面一切正常」。 -->
+<script src="assets/data-core.js"></script>
+<script src="assets/rights.js"></script>
+<script src="assets/album-kit.js"></script>
+<script src="assets/plates-a.js"></script>
+<script src="assets/plates-b.js"></script>
+<script src="assets/plates-c.js"></script>
+<script src="assets/plates-d.js"></script>
+<script src="assets/themes.js"></script>
+<script src="assets/modes.js"></script>
+<script src="assets/mediums.js"></script>
+<script src="assets/gacha.js"></script>
+
+<script>
+/* ============================================================
+ * 美人画册 · 界面
+ *
+ * 状态只有一份：S。任何操作都是改 S 再 render()。
+ * 这么做的好处是「复现一屏」退化成序列化 S，
+ * 而不需要额外维护一份历史栈。
+ *
+ * 五条不能省的呈现纪律（全库反复强调，界面必须兑现）：
+ *   1. 姓名不进提示词 —— 顶栏常驻横幅 + 每条编号的 namedRef 处再声明一次
+ *   2. 授权档与风险标记 —— 每条编号露出，出词时汇总
+ *   3. 状态标注 —— written / tested / reviewed 一眼可辨，
+ *      且 written 明说「写得通但没人在模型上验证过」
+ *   4. 身份层 / 内容层分色 —— 每一面都标出来自编号还是主题
+ *   5. 数字全部现算 —— 库存、分布、组合空间一个都不写死
+ * ============================================================ */
+(function () {
+"use strict";
+
+/* ---------- 取全局符号 ----------
+   各 assets 文件用 var 挂 window，但为了不依赖「一定挂上了」，
+   这里统一走一个取值函数：拿到就用，拿不到就在控制台报出来。
+   直接写裸标识符在符号缺失时是 ReferenceError，整页脚本全挂 ——
+   那种失败方式比「这一块显示不出」糟得多。 */
+var G = (typeof window !== "undefined") ? window : this;
+function need(name) {
+  var v = G[name];
+  if (v === undefined) {
+    console.error("[beauty-album] 缺少全局符号 " + name
+      + " —— 检查 index.html 里的 script 顺序与文件是否存在");
+  }
+  return v;
+}
+
+var KIT   = need("ALBUMKIT");
+var GACHA = need("GACHA");
+/* RIGHTS 走 need() 而不是裸标识符：data-core.js 里也有一个
+   叫 RIGHTS 的容器数组，rights.js 加载时会把同一个全局绑定覆盖成
+   模块对象。浏览器里它们是同一个 window 属性 ——
+   所以这里拿到的必须确认是带 inspect 的那一个，见 boot()。 */
+var RIGHTS = need("RIGHTS");
+
+/* ---------- 数据库 ----------
+   Node 侧由 tools/_load.js 建 db，浏览器端必须自己拼一份。
+   DEFAULT_NEG 的真源在 tools/_load.js 里（assets 中没有），
+   所以这一份是本文件里唯一一处「与 Node 侧重复的数据」——
+   重复的理由是 file:// 下无法 require CommonJS 模块。
+   改动时必须同步改 tools/_load.js，否则网页与命令行出的负面词不一样，
+   而这种差异极难发现：两边都能跑、都能出图，只是差了几个词。 */
+var DB = {
+  ALBUM: G.ALBUM, THEMES: G.THEMES, MODES: G.MODES, MEDIUMS: G.MEDIUMS,
+  ALBUM_FACES: need("ALBUM_FACES"), IDENTITY_FACES: need("IDENTITY_FACES"),
+  RENDER_MODES: need("RENDER_MODES"), RIGHT_TIERS: need("RIGHT_TIERS"),
+  ALBUM_TAXO: need("ALBUM_TAXO"), THEME_TAXO: need("THEME_TAXO"),
+  MEDIUM_RULE: need("MEDIUM_RULE"),
+  RISK_KINDS: need("RISK_KINDS"), NAME_POLICY: need("NAME_POLICY"),
+  STATUS: need("STATUS"), INFO_KINDS: need("INFO_KINDS")
+};
+DB.DEFAULT_NEG = [
+  "低分辨率", "解剖错误", "多手指", "多余肢体", "面部畸变",
+  "不对称眼睛", "文字", "水印", "签名", "logo", "边框"
+];
+DB.KIT = KIT;
+DB.GACHA = GACHA;
+
+/* ---------- 派生索引 ---------- */
+var TIER = {}, RISK = {}, ST = {};
+(DB.RIGHT_TIERS || []).forEach(function (t) { TIER[t.k] = t; });
+(DB.RISK_KINDS  || []).forEach(function (r) { RISK[r.k] = r; });
+(DB.STATUS      || []).forEach(function (s) { ST[s.k] = s; });
+
+var PLATE = {};   /* num → plate */
+var THEME = {};   /* num → theme */
+(DB.ALBUM || []).forEach(function (p) { if (p && p.num) PLATE[p.num] = p; });
+(DB.THEMES || []).forEach(function (t) { if (t && t.num) THEME[t.num] = t; });
+function themeOfNum(n) { return THEME[n] || null; }
+
+var FACES = DB.ALBUM_FACES || [];
+
+/* ============================================================
+ * 色卡推断
+ *
+ * 从 cat 拿大基调，从 skin 描述拿冷暖与明度的偏移。
+ * 为什么推断而不是给 48 条各编一组色：48 组手写的颜色
+ * 永远不会有人校验，改了描述色卡不会跟着变 ——
+ * 而色卡在这里的全部价值就是「一眼扫过去分出气质区」。
+ * ============================================================ */
+var CAT_TONE = {
+  "冷调锐利": { h: 206, s: 30, l: 44 },
+  "暖调柔和": { h: 30,  s: 44, l: 55 },
+  "中性硬朗": { h: 218, s: 13, l: 41 },
+  "明艳":     { h: 344, s: 58, l: 53 },
+  "少年感":   { h: 166, s: 27, l: 60 },
+  "古典":     { h: 38,  s: 36, l: 39 }
+};
+function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+function toneOf(p) {
+  var b = CAT_TONE[p.cat] || { h: 210, s: 22, l: 46 };
+  var h = b.h, s = b.s, l = b.l;
+  var d = ((p.faces || {}).skin || {}).c || "";
+  if (/冷|青/.test(d))          { h = 206; s += 4; }
+  if (/暖|蜜|象牙/.test(d))     { h = 28;  s += 7; }
+  if (/深|暗/.test(d))          { l -= 13; }
+  if (/白皙|浅|苍白|清透/.test(d)) { l += 11; }
+  if (/油光|反光|带光/.test(d))  { s += 9; }
+  if (/哑光|均匀|无油光/.test(d)) { s -= 8; }
+  return { h: h, s: clamp(s, 4, 80), l: clamp(l, 20, 76) };
+}
+function hsl(t, dl, ds) {
+  return "hsl(" + t.h + "," + clamp(t.s + (ds || 0), 3, 90) + "%,"
+       + clamp(t.l + (dl || 0), 10, 92) + "%)";
+}
+function swatchOf(p) {
+  var t = toneOf(p);
+  return "linear-gradient(150deg," + hsl(t, 16, -4) + " 0%,"
+       + hsl(t, 0, 0) + " 48%," + hsl(t, -18, 6) + " 100%)";
+}
+/* 八条面色条：身份层走冷色系、内容层走琥珀系。
+   这样卡片本身就是「正交机制」的示意图 ——
+   前五条同族、后三条另一族，跟引擎里的分组完全一致。 */
+function stripsOf(p) {
+  var t = toneOf(p), out = [];
+  FACES.forEach(function (f, i) {
+    out.push(f.group === "identity"
+      ? hsl({ h: t.h + i * 5 - 12, s: clamp(t.s + 8, 4, 86), l: clamp(t.l + 18 - i * 4, 16, 88) })
+      : hsl({ h: 26 + i * 14, s: 48 + i * 5, l: 42 + i * 6 }));
+  });
+  return out;
+}
+/* 窄条里的编号色条 */
+function chipTone(p) {
+  var t = toneOf(p);
+  return hsl({ h: t.h, s: clamp(t.s + 10, 6, 88), l: clamp(t.l + 6, 18, 72) });
+}
+
+/* 关键词：取描述的第一个意群。
+   为什么不全句塞进标签：卡片正面要能一眼扫完，
+   一句二十字的话塞进 chip 里等于没有 chip。 */
+function kwOf(face, n) {
+  var s = face && face.c ? String(face.c) : "";
+  s = s.split(/[，,。；;、：:（(【]/)[0];
+  s = s.trim();
+  return s.length > n ? s.slice(0, n) : s;
+}
+
+/* ============================================================
+ * 状态
+ * ============================================================ */
+var S = {
+  view: "gallery",
+  /* 详情浮层 */
+  det: false,
+  /* 画廊 */
+  q: "", cat: "全部", tier: "全部", rk: "全部",
+  /* 地域筛选：region 是编号的正交维度 —— 它回答「她从哪个文化圈来」，
+     与 cat（审美印象）不同层。原型段（001–048）region 为空，
+     筛「全球段」时会正确地被排除，不靠字符串硬猜。 */
+  region: "全部",
+  /* 画廊密度：big = 看图（默认，用户来画廊多半是看图不是背编号），
+     dense = 扫编号（一屏 48 个）。
+     两档都留着是因为 48 张里只有 1 张配图 ——
+     只留 big 的话，那 47 张色卡会被撑到比图还大，很怪。 */
+  gview: "big", picOnly: false,
+  /* 四轴条与画廊筛选的折叠态：默认收起，给小白一条没有岔路的主干道 */
+  advAxis: false, moreFilters: false,
+  /* 一句话出图自己的门类选择（与全局解耦：它的编号是自动配的，
+     门类也该由本页流程决定）；画廊的复制配置折叠态。 */
+  cMedium: "photo", copyCfg: false,
+  /* 两轴（画廊选中与工作台共用同一个编号） */
+  num: (DB.ALBUM[0] || {}).num || null,
+  theme: (DB.THEMES[0] || {}).num || null,
+  mode: "plain", plat: "gpt", medium: "photo",
+  /* 组图 */
+  swCat: "全部", swPicked: {}, swOut: null,
+  /* 抽卡 */
+  gN: 8, gSeed: "", gSemantic: true, gForce: false, gCat: "全部",
+  gRolls: null,
+  /* 抽卡的锁：key = 组下标，value = {plate:true, theme:true, mode:true}
+     锁住某一轴后重抽不换它 —— 抽卡的乐趣在「换一个轴看看」，
+     而不是每次都整组推翻重来。 */
+  gLocks: {},
+  /* 自定义出图 */
+  cText: "", cNum: null, cTheme: null, cMode: "plain",
+  cRatio: "3:4", cAppend: true, cAuto: null,
+  /* 全部词条 */
+  lxTab: "plate"
+};
+
+var el = function (id) { return document.getElementById(id); };
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/[&<>"]/g, function (c) {
+      return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c];
+    });
+}
+function clip(s, n) {
+  s = String(s == null ? "" : s);
+  return s.length > n ? s.slice(0, n) + "…" : s;
+}
+
+/* ---------- 复制 ----------
+   file:// 下 navigator.clipboard 常常不可用（不是安全上下文），
+   所以一定要留 execCommand 兜底，而且两路都要 try ——
+   剪贴板失败不该让界面报错。 */
+/* 复制：成败必须真判定了再报喜，不能一调用就说「已复制」。
+ *
+ * navigator.clipboard.writeText 返回的是 Promise —— 「调用了」不等于「写进去了」。
+ * Firefox 下 file:// 也算可信任来源，clipboard 是存在的，但写入会被拒：
+ * 那时如果照旧弹「已复制」，用户看到的是成功、剪贴板里是空的，
+ * 而且没有任何东西报错（rejection 没人接，静悄悄丢掉）。
+ * 这条失败最坏的地方在于**没有症状** —— 他会一直以为是模型的问题。
+ *
+ * 所以三条路都走完才说话：
+ *   ① clipboard 写入成功           → 报成功
+ *   ② 被拒 / 不存在                → 回落 execCommand（file:// 双击打开的真实路径）
+ *   ③ 两条都失败                   → 摊开全文让他手动 Ctrl+C
+ */
+function copyText(txt, note) {
+  txt = (txt == null ? "" : String(txt));
+  var okMsg = "已复制" + (note ? " " + note : "") + "（" + txt.length + " 字）";
+  function done(good) {
+    if (good) toast(okMsg);
+    else manualCopyBox(txt, note);
+    return good;
+  }
+  var p = null;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      p = navigator.clipboard.writeText(txt);
+    }
+  } catch (e) { p = null; }
+  /* 返回了 Promise：等它 settle 再决定说什么，此处不能给返回值 ——
+     给一个「多半是真的」的布尔值，比不给更糟，调用方会拿它去报喜。 */
+  if (p && typeof p.then === "function") {
+    p.then(function () { done(true); }, function () { done(fallbackCopy(txt)); });
+    return;
+  }
+  if (p) { done(true); return; }   /* 同步返回非 Promise 的实现：当成成功 */
+  done(fallbackCopy(txt));
+}
+
+/* 老路子：塞一个屏幕外的 textarea，选中，execCommand。
+   execCommand 已废弃但仍是 file:// 下唯一能用的自动复制手段。 */
+function fallbackCopy(txt) {
+  try {
+    var ta = document.createElement("textarea");
+    ta.value = txt;
+    ta.style.position = "fixed"; ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = !!document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) { return false; }
+}
+
+/* 兜底的兜底：把全文摊开。
+   不摊开的话，「复制被拒绝」这句提示是空的 —— 内容是现算的，
+   界面上没有它的全文，用户无从手动复制。 */
+function manualCopyBox(txt, note) {
+  var box = el("cmask"), ta = el("cmText");
+  if (!box || !ta) { toast("复制被浏览器拒绝，且无法摊开全文"); return; }
+  el("cmHint").textContent = note || "";
+  el("cmWhy").innerHTML = "<b>浏览器拒绝了自动写入剪贴板。</b>"
+    + "这在本库双击打开（<code>file://</code>）时最常见 —— "
+    + "浏览器不把本地文件当可信任来源。"
+    + "下面已经全选好了，按 <b>Ctrl+C</b>（Mac ⌘C）即可；"
+    + "也可以把整页部署到 <code>https</code> 下，自动复制就能用。";
+  ta.value = txt;
+  box.classList.add("on");
+  try { ta.focus(); ta.select(); } catch (e) {}
+}
+function closeCopyBox() { var b = el("cmask"); if (b) b.classList.remove("on"); }
+var toastTimer = null;
+function toast(msg) {
+  var t = el("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { t.classList.remove("show"); }, 1500);
+}
+
+/* ---------- 徽章 ---------- */
+function tierBadge(k) {
+  var t = TIER[k];
+  if (!t) return "";
+  return '<span class="tier" style="color:' + t.color + ";border-color:" + t.color
+    + ";background:" + t.color + '22" title="' + esc(t.desc + "｜能做什么：" + t.can) + '">'
+    + esc(t.k) + " " + esc(t.zh) + "</span>";
+}
+function riskBadge(k) {
+  var r = RISK[k];
+  if (!r) return "";
+  return '<span class="rk rk-' + esc(k) + '" title="' + esc(r.desc) + '">' + esc(r.zh) + "</span>";
+}
+function statusBadge(p) {
+  var k = p.status || "written";
+  var s = ST[k];
+  return '<span class="badge s' + esc(k) + '" title="'
+    + esc(s ? s.desc : k) + '">' + esc(s ? s.zh : k) + "</span>";
+}
+
+/* ---------- 计数（全部现算） ---------- */
+function countsOf(list, key) {
+  var m = {}, total = 0;
+  list.forEach(function (x) {
+    var v = x[key];
+    if (v == null) return;
+    m[v] = (m[v] || 0) + 1; total++;
+  });
+  return { m: m, total: total };
+}
+/* ---------- 归类的唯一入口 ----------
+   所有「有哪些类目、按什么顺序列」的问题都走这两个函数，
+   答案来自 data-core.js 的 ALBUM_TAXO / THEME_TAXO，不是从数据里现算。
+
+   为什么不现算：现算出来的顺序 = 数据里首次出现的顺序。
+   那等于把「001 为什么是冷调锐利」这条编排决定藏进了文件行序 ——
+   有人在中间插一条，整张分组表的顺序就跟着变，而且一声不响。
+   类目是给读者认路的地图，它必须写在一个能被人读到的地方。
+
+   出现过但不在册的类目**不丢**，接到末尾并标出来 ——
+   直接丢弃的话，新加的类目会在所有筛选里静默消失，
+   界面表现只是「少了几张卡」，没人会往「归类没登记」上想。 */
+function taxoOrder(declared, seen) {
+  var out = declared.slice();
+  seen.forEach(function (k) { if (out.indexOf(k) < 0) out.push(k); });
+  return out;
+}
+function sortedCats(list) {
+  var seen = [], m = {};
+  list.forEach(function (x) { if (x.cat && !m[x.cat]) { m[x.cat] = 1; seen.push(x.cat); } });
+  return taxoOrder(((DB.ALBUM_TAXO || {}).kinds || []), seen);
+}
+function cultureCircles(list) {
+  var seen = [], m = {};
+  list.forEach(function (x) { if (x.region && !m[x.region]) { m[x.region] = 1; seen.push(x.region); } });
+  return taxoOrder(((DB.ALBUM_TAXO || {}).circles || []), seen);
+}
+/* 主题按 cat 分组。顺序来自 THEME_TAXO（八类的编排顺序），
+   不按拼音、不按数量 —— 库的编排顺序本身就是「按场景区排的」，
+   打乱它等于把作者的信息丢掉。 */
+function themeGroups() {
+  var m = {}, order = [];
+  (DB.THEMES || []).forEach(function (t) {
+    if (!m[t.cat]) { m[t.cat] = { cat: t.cat, list: [] }; order.push(t.cat); }
+    m[t.cat].list.push(t);
+  });
+  return taxoOrder(((DB.THEME_TAXO || {}).cats || []), order)
+    .map(function (k) { return m[k]; })
+    .filter(function (g) { return !!g; });
+}
+
+/* ============================================================
+ * 顶栏：库存条。数字一个都不写死。
+ * ============================================================ */
+/* 三根轴的全局控件。放在顶栏而不是画廊内部，因为这三根轴是全局状态 ——
+   工作台、组图、抽卡、自定义出图都跟着 S 走，
+   把控件画在某一页里等于谎报它的作用域。 */
+/* 四根轴，按性质分组 —— 以前它们是三样东西平铺在一个条上，
+   而那三样东西根本不在同一个层级：
+     主题 = 她在什么地方穿什么   （内容）
+     模式 = 成品有没有字、怎么排   （版式）
+     平台 = 给哪个模型、什么语法   （方言）
+   把不同层级的东西并排摆着，看起来就像「三个并列的同类项」，
+   于是每一样都别扭 —— 模式夹在中间，既不像内容也不像方言。
+   分组之后，每一组内部是同一性质的，别动感消失。 */
+var PLAT_WHAT = {
+  gpt: "GPT 图像 / 豆包一类：自然语言整句，不写权重",
+  sd: "Stable Diffusion：权重语法 + 分组 + 负面词框",
+  mj: "Midjourney：参数在末尾，负面词用 --no",
+  flux: "FLUX：自然语言整句，不吃权重",
+  nl: "自然语言整句：给不支持提示词框的对话式模型"
+};
+
+function renderHeader() {
+  var A = DB.ALBUM || [], T = DB.THEMES || [], M = DB.MODES || [];
+  var total = A.length;
+
+  el("stamp").innerHTML = "编号 <b>" + total + "</b> · 主题 <b>" + T.length
+    + "</b> · 模式 <b>" + M.length + "</b>";
+
+  /* 姓名策略横幅。用 NAME_POLICY.notice 而不是自己写一遍文案 ——
+     引擎用的也是这一句，两处各写一次就会在改动后不一致，
+     而「声明」与「实际行为」不一致是最坏的一种不一致。 */
+  var np = DB.NAME_POLICY || {};
+  el("policyTx").innerHTML =
+    "<b>" + esc(np.notice || "") + "</b>"
+    + '<span class="sub2">' + esc(np.desc || "") + "</span>"
+    + '<span class="sub2">引擎在两层做阻断（ALBUMKIT._stripNames 剥编号与主题里的真名片段，'
+    + "compose 的每一面与负面词都过一遍），界面在每一处出词的地方再声明一次。"
+    + "原因：姓名在模型上响应不稳；姓名不可组合（换不了发型、换不了气质）；"
+    + "而肖像指认不因免责声明消失。</span>";
+
+  var byCat = countsOf(A, "cat");
+  var bySt = countsOf(A.map(function (p) { return { s: p.status || "written" }; }), "s");
+  var byRt = countsOf(A, "rights");
+  var byRk = countsOf(A, "risk");
+
+  /* 状态条按可信度顺序排，不按数量排 ——
+     按数量排会让人误以为数量最多的那档最重要。 */
+  var stOrder = ["reviewed", "tested", "written", "collected"];
+  var stColor = {
+    reviewed: "var(--st-reviewed)", tested: "var(--st-tested)",
+    written: "var(--st-written)", collected: "var(--st-collected)"
+  };
+  var bar = stOrder.map(function (s) {
+    var n = bySt.m[s] || 0;
+    if (!n) return "";
+    return '<i style="width:' + (n / total * 100).toFixed(1) + "%;background:" + stColor[s]
+      + '" title="' + esc((ST[s] || {}).zh || s) + " " + n + ' 条"></i>';
+  }).join("");
+
+  /* 七面填充率：逐面现算。空面出来的图会像默认设置，
+     而「有几条缺哪一面」必须成句，不能只给百分比。 */
+  var faceFill = FACES.map(function (f) {
+    var n = A.filter(function (p) {
+      var v = (p.faces || {})[f.k];
+      return v && (v.c || v);
+    }).length;
+    return { zh: f.zh, n: n };
+  });
+  var withGap = A.filter(function (p) {
+    return FACES.some(function (f) {
+      var v = (p.faces || {})[f.k];
+      return !v || !(v.c || v);
+    });
+  });
+  var gapTxt = withGap.length
+    ? '<b>' + withGap.length + " 条编号七面未填满</b>："
+      + withGap.slice(0, 3).map(function (p) { return esc(p.num); }).join("、")
+      + (withGap.length > 3 ? " …" : "")
+    : '<span class="good">七面全满</span> —— 每条编号的骨相到场景都有内容，'
+      + "出词时不会出现空面（空面出来的图一眼就是没设计过）";
+
+  /* 编号不提供 scene —— 这是设计而非缺口，画册管人不管景。
+     所以主题覆盖率单列：scene 只可能来自主题。 */
+  var thScene = (DB.THEMES || []).filter(function (t) {
+    return t.faces && t.faces.scene;
+  }).length;
+
+  var catTxt = sortedCats(A).map(function (c) {
+    return esc(c) + " <b>" + (byCat.m[c] || 0) + "</b>";
+  }).join(" · ");
+
+  var tierTxt = (DB.RIGHT_TIERS || []).map(function (t) {
+    return esc(t.k) + " <b>" + (byRt.m[t.k] || 0) + "</b>";
+  }).join(" · ");
+
+  var riskTxt = (DB.RISK_KINDS || []).filter(function (r) { return (byRk.m[r.k] || 0) > 0; })
+    .map(function (r) { return esc(r.zh) + " <b>" + byRk.m[r.k] + "</b>"; }).join(" · ")
+    || "—";
+
+  el("inv").innerHTML =
+    '<div class="invblk"><span class="k">编号总数</span><span class="v"><b>' + total
+    + "</b> 条 · 主题 <b>" + T.length + "</b> 个</span></div>"
+    + '<div class="invblk"><span class="k">类目分布（' + sortedCats(A).length + " 类）</span>"
+    + '<span class="v" style="font-size:11px">' + catTxt + "</span></div>"
+    + '<div class="invblk"><span class="k">状态分布</span><span class="v">已复核 <b>'
+    + (bySt.m.reviewed || 0) + "</b> · 已测试 <b>" + (bySt.m.tested || 0)
+    + "</b> · 已编写 <b>" + (bySt.m.written || 0) + "</b> · 已收录 <b>"
+    + (bySt.m.collected || 0) + "</b></span><div class=\"invbar\">" + bar + "</div></div>"
+    + '<div class="invblk"><span class="k">七面填充（' + total + " 为满值）</span>"
+    + '<span class="v" style="font-size:10.5px">'
+    + faceFill.map(function (f) { return esc(f.zh) + " " + f.n + "/" + total; }).join(" · ")
+    + "</span></div>"
+    + '<div class="invblk"><span class="k">授权档分布</span><span class="v">' + tierTxt + "</span></div>"
+    + '<div class="invblk"><span class="k">风险分布</span><span class="v">' + riskTxt + "</span></div>"
+    + '<div class="invblk" style="flex:1 1 300px"><span class="k">覆盖状态</span>'
+    + '<span class="gaps">' + gapTxt
+    + "<br>场景面由主题提供：" + thScene + "/" + T.length
+    + " 个主题带场景 —— 没选主题时 scene 留空并报出来，不回退到编号"
+    + '<br><b>written 是本库默认档</b>：七面填满、能直接出词，'
+    + "但没有任何一条在模型上跑过并留存结果。徽章上带「·未验证」后缀的就是这一档。</span></div>";
+}
+
+/* ============================================================
+ * 配图放大
+ * ============================================================ */
+/* 除了原图，这里还给出这条的 test 记录。
+   为什么必须一起给：图本身不说明它是怎么来的 ——
+   「这张图在哪个模型上出的、哪些面验证到了、哪些没验证到」
+   写进这张卡片的代码里，看图的人就永远不知道。
+   而一张没写清来历的示例图，恰恰是最容易被当成「就是这个配方出来的」，
+   实际上它可能只是配图时挑了某个主题、某些面根本没在这张上出现。 */
+function openPic(num) {
+  var p = (PLATE && PLATE[num]) || null;
+  var box = el("pmask");
+  if (!box) return;
+  if (!p || !(p.test && p.test.pic)) { toast("这个编号还没有配图"); return; }
+  var T = p.test;
+  el("pzTitle").innerHTML = esc(p.num + " " + p.zh)
+    + ' <span style="font:11px var(--mono);color:var(--accent)">' + esc(T.size || "") + "</span>";
+  el("pzHint").textContent = "配图不是提示词的截图 —— 它是在别的模型上跑出来的结果";
+  var h = '<img class="pzimg" src="' + esc(T.pic) + '" alt="' + esc(p.num + " " + p.zh) + '">';
+  h += '<div class="pzmeta">'
+    + '<div class="pzrow"><span class="k">出图模型</span><span class="v"><b>'
+    + esc(T.model || "未记录") + "</b></span></div>"
+    + '<div class="pzrow"><span class="k">用的轴</span><span class="v">'
+    + esc(T.theme || "-") + " · " + esc((T.mode || "-")) + "</span></div>"
+    + '<div class="pzrow"><span class="k">对上了</span><span class="v">'
+    + ((T.hit || []).length
+        ? T.hit.map(function (x) { return '<i>' + esc(x) + "</i>"; }).join("；")
+        : "（未记录）") + "</span></div>"
+    + '<div class="pzrow"><span class="k">没对上</span><span class="v">'
+    + ((T.miss || []).length
+        ? T.miss.map(function (x) { return '<i style="color:var(--rk-lookalike)">' + esc(x) + "</i>"; }).join("；")
+        : "（未记录）") + "</span></div>";
+  if (T.note) {
+    h += '<div class="pzrow"><span class="k">结论</span><span class="v">'
+      + esc(T.note) + "</span></div>";
+  }
+  h += '<div class="note warn" style="margin-top:10px">这条记录是 <b>test 类信息</b>：'
+    + "换模型就不成立。它证明的是「在 " + esc(T.model || "该模型")
+    + " 上这套词出成什么样」，不能推广成「这套配方就长这样」。</div>";
+  h += "</div>";
+  el("pz").innerHTML = h;
+  box.classList.add("on");
+}
+function closePic() { var b = el("pmask"); if (b) b.classList.remove("on"); }
+
+/* ============================================================
+ * 顶部页签
+ * ============================================================ */
+/* 八页。顺序按「使用频率」排，不按实现顺序排：
+   画廊 → 抽卡 → 自定义出图 是三条最常用的入口，必须在最前面。
+   页签上的数字全部现算：写死的数字在改库那天就开始骗人。 */
+/* 页签全平铺，6 个。
+     曾经的「更多 ▾」下拉被撤销 —— 事实是没人点开它：
+     下拉里的东西等于不存在，比平铺还糟（平铺至少看得见名字）。
+     所以低频页不是收起来，而是**下线或合并**：
+     词条库下线（功能被画廊详情与精品出图覆盖），
+     授权合规并入体检（都是治理信息）。
+     key 不变（跳转、测试、导出都按 key），只改显示与分组。 */
+var VIEWS = [
+  { k:"gallery", zh:"画廊",       d:"看图选人 · 点击了解 · 一键复制",
+    n:function () { return (DB.ALBUM || []).length; } },
+  { k:"custom",  zh:"一句话出图", d:"说一句想要什么 → 自动配好 → 直接复制",
+    n:function () { return (DB.THEMES || []).length; } },
+  { k:"gacha",   zh:"抽卡",       d:"一次铺 8 组 · 可锁住某张 · 只换一个轴",
+    n:function () { return (DB.MODES || []).length; } },
+  { k:"bench",   zh:"精品出图",   d:"编号 × 主题 × 门类逐项手选，实时出词",
+    n:function () { return (DB.THEMES || []).length; } },
+  { k:"series",  zh:"组图",       d:"一个编号 × 多个主题，一次出一整套",
+    n:function () { return (DB.THEMES || []).length; } },
+  { k:"check",   zh:"体检",       d:"覆盖 · 缺口 · 冲突 · 授权与姓名策略",
+    n:function () { return (DB.ALBUM_FACES || []).length; } }
+];
+function renderNav() {
+  var h = "";
+  VIEWS.forEach(function (v) {
+    var n = v.n ? v.n() : null;
+    h += '<button class="tabitem' + (S.view === v.k ? " on" : "") + '" data-act="view" data-v="'
+      + v.k + '" title="' + esc(v.d) + '">'
+      + '<span>' + esc(v.zh) + "</span>"
+      + (n == null ? "" : '<span class="n">' + n + "</span>") + "</button>";
+  });
+  el("nav").innerHTML = h;
+}
+
+/* ============================================================
+ * 一 画廊
+ * ============================================================ */
+/* 已配图的条数。现数，不写死 —— 写死的进度下个月就开始骗人。 */
+function withPicCount() {
+  return (DB.ALBUM || []).filter(function (p) { return p.test && p.test.pic; }).length;
+}
+function galleryList() {
+  var q = S.q.trim().toLowerCase();
+  return (DB.ALBUM || []).filter(function (p) {
+    if (S.cat !== "全部" && p.cat !== S.cat) return false;
+    if (S.tier !== "全部" && p.rights !== S.tier) return false;
+    if (S.rk !== "全部" && p.risk !== S.rk) return false;
+    if (S.region === "全球段" && !p.region) return false;
+    if (S.region !== "全部" && S.region !== "全球段" && p.region !== S.region) return false;
+    /* 只看有图：以 test.pic 为准，而不是「examples/ 里有没有那个文件」——
+       页面读不到文件系统，test.pic 是它唯一能拿到的依据。
+       一致性由 check_album 对拍（声明有文件没 → 错）。 */
+    if (S.picOnly && !(p.test && p.test.pic)) return false;
+    if (!q) return true;
+    var hay = [p.num, p.zh, p.en, p.cat, p.read, p.light, p.camera]
+      .concat(Object.keys(p.faces || {}).map(function (k) {
+        var f = p.faces[k]; return (f && (f.c || f)) || "";
+      })).join(" ").toLowerCase();
+    return hay.indexOf(q) >= 0;
+  });
+}
+/* ---------- 画廊一键复制 ----------
+   卡片上直接出词，省掉「点开 → 切到工作台 → 再复制」三步。
+
+   为什么复制的不是纯编号：纯编号缺 scene 面（场景由主题给），
+   复制出去是一条不完整的词。所以按钮带上工作台当前选中的主题。
+
+   代价是：卡片上看不出当前主题是什么 —— 所以按钮旁边必须写明
+   这次复制的是哪两轴（「AL-001 × TH-001」），不能只写「复制」。
+   写清楚之前，这个功能就是在骗人。
+
+   AL-001 试点通过后已全量铺开（"*" = 全部编号都挂）。 */
+var GCOPY_PILOT = "*";
+function gcopyOn(p) {
+  if (GCOPY_PILOT === "*") return true;
+  return GCOPY_PILOT.indexOf(p.num) >= 0;
+}
+/* 现算不缓存：主题/模式/平台随时在变，写死在 data-cp 里就会复制出旧词。 */
+function gcopyText(p) {
+  if (!p) return null;
+  var r = KIT.compose(DB, p.num, { themeId: S.theme, mode: S.mode, medium: S.medium });
+  if (!r || !r.ok) return null;
+  var tags = (r.tags && r.tags[S.plat]) || [];
+  return (S.plat === "nl") ? (r.nl || "") : tags.join("，");
+}
+/* 只写轴信息，不写「复制」—— 按钮文案已经说了复制，
+   卡内这一行要留给两轴本身：窄卡片只有 ~180px 可用宽度，
+   前缀吃掉四个字，最要紧的「配了哪个主题」就被挤掉了。 */
+/* 负面词单独一个按钮，不并进正面词里。
+   并进去的话，SD 用户粘贴到 Positive 框就等于把「不要文字」写成了
+   「要文字」—— 而这四个模式里纯图模式的负面词正是「文字/字母/水印」。
+   反过来，只给正面词也不行：没有负面词的纯图模式，模型几乎必然会自己加字。
+   所以两串分开给，各自可复制，用法在按钮 title 里写明。 */
+/* 负面词的串怎么给，取决于平台：
+   MJ 必须带 --no 前缀。给一串裸词，MJ 用户要么自己加前缀，
+   要么（更常见）直接把它当成正面词粘进去 —— 那就成了自己给自己下毒。
+   这一个函数是所有出口共用的，各页不要各拼一次，否则迟早有一处漏掉前缀。 */
+function negStrOf(list) {
+  var s = (list || []).join("，");
+  if (!s) return "";
+  return S.plat === "mj" ? "--no " + s : s;
+}
+function gcopyNeg(p) {
+  if (!p) return null;
+  var r = KIT.compose(DB, p.num, { themeId: S.theme, mode: S.mode, medium: S.medium });
+  if (!r || !r.ok) return null;
+  return negStrOf(r.neg) || null;
+}
+function gcopyNote(p) {
+  var mo = (DB.MODES || []).filter(function (m) { return m.k === S.mode; })[0] || {};
+  return p.num
+    + (S.theme ? " × " + S.theme : " × 无主题（缺场景面）")
+    + " · " + (mo.zh || S.mode)
+    + " · " + S.plat.toUpperCase();
+}
+function gcard(p) {
+  var strips = stripsOf(p).map(function (c) { return '<i style="background:' + c + '"></i>'; }).join("");
+  /* 配图位。examples/<num>.png 存在就显示图，不存在就退回色卡 ——
+     两种状态都要能看，所以不能等图加载完再决定画什么：
+     那会让 47 张没图的卡先空一拍再突然长出色卡。
+     onerror 兜的是「文件名对但文件不在」——那种情况静默塌回色卡，
+     因为界面不能因为一张图坏了就不画人。
+     点图放大、点卡片其余部分看详情：两个意图不能抢同一个手势，
+     否则想看详情的人总是被弹到大图上。 */
+  /* 「放大」标签只给真的有图的那张卡挂。
+     48 张里只有 1 张有图，如果无条件挂上，
+     那 47 张会各挂一个「放大」，点开却是「这个编号还没有配图」——
+     标签是承诺，它必须和实际能做的事一致。 */
+  var pic = '<img class="gpic" loading="lazy" src="examples/' + esc(p.num) + '.png"'
+    + ' alt="' + esc(p.num + " " + p.zh) + '" data-act="zoompic" data-num="' + esc(p.num) + '"'
+    + ' onerror="this.style.display=\'none\';this.parentNode.classList.add(\'nopic\')">'
+    + (p.test && p.test.pic ? '<span class="gzoom">放大</span>' : "");
+  var kw = FACES.map(function (f) {
+    var v = (p.faces || {})[f.k];
+    if (!v || !(v.c || v)) return "";
+    var k = kwOf(v, 6);
+    if (!k) return "";
+    return '<span class="' + (f.group === "identity" ? "id" : "mu") + '" title="'
+      + esc(f.zh + "：" + (v.c || v)) + '">' + esc(k) + "</span>";
+  }).join("");
+  return '<div class="gcard' + (S.num === p.num ? " on" : "") + '" data-act="pick" data-num="' + p.num + '">'
+    + '<div class="gsw" style="background:' + swatchOf(p) + '">'
+    + pic
+    + '<div class="gid"><em>' + esc(p.num) + "</em>" + esc(p.num.slice(3)) + "</div>"
+    + '<div class="gtier">' + tierBadge(p.rights) + "</div>"
+    + '<div class="gstrips">' + strips + "</div></div>"
+    + '<div class="gbody">'
+    + '<div class="gname">' + esc(p.zh) + "<em>" + esc(p.en || "") + "</em></div>"
+    + '<div class="gkw">' + kw + "</div>"
+    + '<div class="gfoot"><span class="cat">' + esc(p.cat) + "</span>"
+    + (p.region ? '<span class="rg" title="文化圈：' + esc(p.culture || "") + '">'
+        + esc(p.region) + "</span>" : "")
+    + riskBadge(p.risk)
+    + '<span class="sp"></span>' + statusBadge(p) + "</div>"
+    + (gcopyOn(p)
+        ? '<div class="gact">'
+          + '<button class="mini p" data-act="gcopy" data-num="' + p.num
+          + '" title="复制正面词：' + esc(gcopyNote(p)) + '">复制提示词</button>'
+          + '<button class="mini neg" data-act="gneg" data-num="' + p.num
+          + '" title="复制负面词 —— SD 填 Negative 框，MJ 用 --no，FLUX 一般不用">负面词'
+          + negN(p) + "</button>"
+          + "</div>"
+          + '<div class="gwhat">' + esc(gcopyNote(p)) + "</div>"
+        : "")
+    + "</div></div>";
+}
+/* 负面词条数直接写在按钮上：条数是「这一串有没有东西」的唯一可见证据，
+   藏起来就只能靠点一下才知道，而复制出空串是最难自查的一类失败。 */
+function negN(p) {
+  var r = KIT.compose(DB, p.num, { themeId: S.theme, mode: S.mode, medium: S.medium });
+  var n = (r && r.ok && (r.neg || []).length) || 0;
+  return n ? " " + n : " 0";
+}
+function renderGallery() {
+  el("mainH").innerHTML = "画廊<span class=\"hint\">看图选人 · 点击了解 · 一键复制</span>";
+  var list = galleryList();
+
+  /* 复制配置，默认折叠成一行。
+     画廊的主体是「看图选人」，出词参数（主题/门类/模式/平台）
+     只是复制按钮的隐藏输入 —— 输入不该占据展示的主视野。
+     折叠态也必须如实回显当前组合：收起≠没有，
+     复制出来的词就是按这组参数现算的。 */
+  var mo = (DB.MODES || []).filter(function (m) { return m.k === S.mode; })[0] || {};
+  var th = (DB.THEMES || []).filter(function (t) { return t.num === S.theme; })[0] || {};
+  var md = (DB.MEDIUMS || []).filter(function (m) { return m.k === S.medium; })[0] || {};
+  var cfgHead = '<div class="cfgbar">'
+    + '<button class="mini' + (S.copyCfg ? " on" : "") + '" data-act="copycfg" data-v="'
+    + (S.copyCfg ? "0" : "1") + '" title="主题 / 门类 / 模式 / 平台 —— '
+    + '卡片上「复制提示词」按这组参数现算">'
+    + (S.copyCfg ? "收起复制配置" : "复制配置") + "："
+    + esc(th.num || "未选") + " · " + esc(md.zh || "-") + " · " + esc(mo.zh || "-") + " · "
+    + esc(S.plat.toUpperCase()) + (S.copyCfg ? "" : " ▾") + "</button></div>";
+  var cfgBody = "";
+  if (S.copyCfg) {
+    cfgBody = '<div class="morebox">'
+      + '<div class="filters" style="margin-bottom:4px"><b style="font-size:11px;color:var(--ink2)">主题</b>'
+      + '<select id="gtheme" title="场景面由它给：没有主题的编号合成出来缺这一面">'
+      + (DB.THEMES || []).map(function (t) {
+          return '<option value="' + esc(t.num) + '"' + (t.num === S.theme ? " selected" : "") + ">"
+            + esc(t.num + " " + t.zh) + "</option>";
+        }).join("")
+      + "</select></div>"
+      + '<div class="filters" style="margin-bottom:4px"><b style="font-size:11px;color:var(--ink2)">门类</b>'
+      + (DB.MEDIUMS || []).map(function (m) {
+          return '<button class="mini' + (S.medium === m.k ? " on" : "") + '" data-act="medium" data-v="'
+            + m.k + '" title="' + esc(m.desc + (m.caution ? "\n\n注意：" + m.caution : "")) + '">'
+            + esc(m.zh) + "</button>";
+        }).join("") + "</div>"
+      + '<div class="filters" style="margin-bottom:4px"><b style="font-size:11px;color:var(--ink2)">模式</b>'
+      + (DB.MODES || []).map(function (m) {
+          return '<button class="mini' + (S.mode === m.k ? " on" : "") + '" data-act="mode" data-v="'
+            + m.k + '" title="' + esc(m.desc) + '">' + esc(m.zh) + "</button>";
+        }).join("") + "</div>"
+      + '<div class="filters"><b style="font-size:11px;color:var(--ink2)">平台</b>'
+      + Object.keys(KIT.PLATFORMS || {}).map(function (k) {
+          return '<button class="mini' + (S.plat === k ? " on" : "") + '" data-act="plat" data-v="'
+            + k + '" title="' + esc(PLAT_WHAT[k] || "") + '">' + esc(k.toUpperCase()) + "</button>";
+        }).join("") + "</div>"
+      + "</div>";
+  }
+  var f = cfgHead + cfgBody;
+
+  f += '<input type="search" id="gq" placeholder="搜索编号 / 名称 / 任意一面描述…" value="' + esc(S.q) + '" autocomplete="off">';
+
+  /* 筛选分两层：类目 + 地域平铺（找人的两个核心问题：
+     「想要什么气质」「她从哪个文化圈来」），
+     授权 / 风险 / 密度 / 只看有图收进「更多筛选」折叠。
+     平铺的每一条筛选都是一次视觉税 —— 收进折叠的不是功能，
+     是对低频需求的默认静音。折叠态跟随 S.moreFilters。 */
+  f += '<div class="filters">';
+  f += '<button class="fchip' + (S.cat === "全部" ? " on" : "") + '" data-act="fcat" data-v="全部">全部<small>'
+     + (DB.ALBUM || []).length + "</small></button>";
+  var cc = countsOf(DB.ALBUM || [], "cat");
+  sortedCats(DB.ALBUM || []).forEach(function (c) {
+    f += '<button class="fchip' + (S.cat === c ? " on" : "") + '" data-act="fcat" data-v="' + esc(c) + '">'
+       + esc(c) + "<small>" + (cc.m[c] || 0) + "</small></button>";
+  });
+  f += "</div>";
+
+  /* 地域筛选。region 有三种状态：全部 / 全球段（原型段 48 条之外）/ 具体文化圈。
+     数量现算 —— 「全球段 · 32」这类数字写死的话，
+     下一个文化圈补进来那天它就开始骗人。 */
+  /* 文化圈的顺序同样取 ALBUM_TAXO.circles，不取数据首次出现顺序。 */
+  var regions = cultureCircles(DB.ALBUM || []);
+  f += '<div class="filters">';
+  f += '<button class="fchip' + (S.region === "全部" ? " on" : "") + '" data-act="fregion" data-v="全部">全地域</button>';
+  var gN = (DB.ALBUM || []).filter(function (p) { return p.region; }).length;
+  f += '<button class="fchip' + (S.region === "全球段" ? " on" : "") + '" data-act="fregion" data-v="全球段"'
+    + ' title="原型段 001–048 不锚定地域；全球段是按文化圈补的编号">全球段<small>' + gN + "</small></button>";
+  regions.forEach(function (r) {
+    var n = (DB.ALBUM || []).filter(function (p) { return p.region === r; }).length;
+    f += '<button class="fchip' + (S.region === r ? " on" : "") + '" data-act="fregion" data-v="'
+      + esc(r) + '">' + esc(r) + "<small>" + n + "</small></button>";
+  });
+  /* 「更多筛选」开关也放在地域行尾 —— 视觉上它是这一组的延伸。 */
+  var moreOn = S.tier !== "全部" || S.rk !== "全部" || S.picOnly || S.gview !== "big";
+  f += '<button class="fchip' + (S.moreFilters ? " on" : "") + '" data-act="morefilters" data-v="'
+    + (S.moreFilters ? "0" : "1") + '" title="授权档 / 风险 / 看图密度 / 只看有图">'
+    + (S.moreFilters ? "收起筛选" : "更多筛选") + (moreOn && !S.moreFilters ? " ·" : "") + "</button>";
+  f += "</div>";
+
+  if (S.moreFilters) {
+    f += '<div class="filters morebox">';
+    f += '<button class="fchip' + (S.tier === "全部" ? " on" : "") + '" data-act="ftier" data-v="全部">授权全档</button>';
+    (DB.RIGHT_TIERS || []).forEach(function (t) {
+      f += '<button class="fchip' + (S.tier === t.k ? " on" : "") + '" data-act="ftier" data-v="' + t.k
+         + '" title="' + esc(t.desc) + '">' + esc(t.k + " " + t.zh) + "</button>";
+    });
+    f += '<button class="fchip' + (S.rk === "全部" ? " on" : "") + '" data-act="frk" data-v="全部">风险全档</button>';
+    (DB.RISK_KINDS || []).forEach(function (r) {
+      f += '<button class="fchip' + (S.rk === r.k ? " on" : "") + '" data-act="frk" data-v="' + r.k
+         + '" title="' + esc(r.desc) + '">' + esc(r.zh) + "</button>";
+    });
+    f += '<span class="sp" style="width:14px"></span>';
+    f += '<button class="fchip' + (S.gview === "big" ? " on" : "") + '" data-act="gview" data-v="big"'
+      + ' title="图区放大到接近竖构图原比例，用来认脸">看图</button>'
+      + '<button class="fchip' + (S.gview !== "big" ? " on" : "") + '" data-act="gview" data-v="dense"'
+      + ' title="一屏塞满 80 个编号，用来扫">扫编号</button>'
+      + '<button class="fchip' + (S.picOnly ? " on" : "") + '" data-act="gpiconly" data-v="1"'
+      + ' title="只列出 examples/ 里已有配图的编号">'
+      + (S.picOnly ? "只看有图 " + withPicCount() : "全部 · 有图 " + withPicCount()) + "</button>";
+    f += "</div>";
+  }
+
+  /* （旧注释已删：复制配置现在就是画廊页内的一行，见 renderGallery 开头。） */
+  f += '<div class="legend">'
+    + '<span><i style="background:' + hsl({h:206,s:36,l:56}) + '"></i>身份层五面（恒定，来自编号）</span>'
+    + '<span><i style="background:' + hsl({h:30,s:56,l:52}) + '"></i>可变层三面（可被主题覆盖）</span>'
+    + '<span>色卡由 cat + skin 描述现推，改描述色就跟着变</span></div>';
+
+  /* 有图没图都得说清楚 —— 卡片看着像缩略图，
+     很容易被当成「库里已有的出图」。
+     现在的规则：examples/<编号>.png 存在就显示那张图，
+     不存在就退回按类目与肤质现推的色卡。
+     两种状态在视觉上分得出来（图有真实细节、色卡是渐变），
+     但**色卡不是出图结果**这件事必须写出来，否则没人会细看。 */
+  f += '<div class="note warn">卡片上的<b>色块是按类目与肤质描述现推的色卡</b>，'
+    + "不是某次出图的结果；只有放进 <code>examples/&lt;编号&gt;.png</code> 的编号才会显示真实配图"
+    + "（命名与待配清单见 <code>gallery-naming.md</code>）。"
+    + "点任意一张卡片展开该编号的完整八面与用法指引。</div>";
+
+  f += '<div class="secthead"><h3>命中</h3><span class="n">' + list.length + " / "
+     + (DB.ALBUM || []).length + "</span><span class=\"why\">"
+     + (S.q || S.cat !== "全部" || S.tier !== "全部" || S.rk !== "全部"
+        ? "有筛选生效中" : "全库") + "</span></div>";
+
+  f += list.length
+    ? '<div class="ggrid' + (S.gview === "big" ? " big" : "") + '">' + list.map(gcard).join("") + "</div>"
+    : '<div class="empty">没有匹配「' + esc(S.q) + "」的编号</div>";
+
+  el("main").innerHTML = f;
+}
+
+/* ============================================================
+ * 二 编号详情（浮层）
+ * ============================================================ */
+function detailHTML() {
+  var p = PLATE[S.num];
+  if (!p) return '<div class="empty">先在画廊里点一个编号</div>';
+
+  var h = '<div class="dhead">'
+    + '<div class="dtitle"><b>' + esc(p.zh) + '</b><span class="en">' + esc(p.en || "") + "</span>"
+    + '<span class="sp"></span><span class="mono" style="font-size:11px;color:var(--accent)">'
+    + esc(p.num) + "</span></div>"
+    + '<div class="dbadges">' + tierBadge(p.rights) + riskBadge(p.risk)
+    + statusBadge(p)
+    + '<span class="badge" title="类目决定抽卡时的语义兼容判定">' + esc(p.cat) + "</span>"
+    + "</div></div>";
+
+  h += '<div class="body">';
+
+  /* 浮层里也要能复制。
+     浮层是「看清楚了再决定要不要用」的地方，看完想用却要关掉浮层
+     回到网格里找那张卡 —— 这一步是纯粹的损耗，而且关掉浮层后
+     卡片可能已经因为筛选滚动变了位置。
+     所以复制按钮在卡片上有一份，在浮层里也有一份，两边同一套现算。 */
+  h += '<div class="gact" style="margin-bottom:9px">'
+    + '<button class="mini p" data-act="gcopy" data-num="' + p.num
+    + '" title="复制正面词：' + esc(gcopyNote(p)) + '">复制提示词</button>'
+    + '<button class="mini neg" data-act="gneg" data-num="' + p.num
+    + '" title="复制负面词 —— SD 填 Negative 框，MJ 用 --no，FLUX 一般不用">负面词'
+    + negN(p) + "</button>"
+    + '<span class="what">' + esc(gcopyNote(p)) + "</span></div>";
+
+  /* 真名只出现在这里，且明确标出「不进提示词」。
+     这一条必须挨着编号显示：编号是要被长期复用的，
+     一个编号里藏了人名等于这个编号每次用都在漏。 */
+  if (p.namedRef) {
+    /* kind 决定标签。默认当真人处理（保守方向），
+       只有显式标了 type 才说「原型是类型」——
+       把类型标成真名，等于告诉使用者这个号指向某个具体的人，
+       而这正是本库最不该暗示的一件事。 */
+    var isPerson = (p.namedRef.kind || "person") === "person";
+    h += '<div class="named"><span class="nt">'
+      + (isPerson ? "真名 · 不进提示词" : "原型 · 不进提示词") + "</span>"
+      + '<span class="nz">' + esc(p.namedRef.zh || p.namedRef) + "</span>"
+      + '<span style="color:var(--ink3)">'
+      + (isPerson ? "只用于查找与指代" : "类型是抽取来源，不指向任何可识别真人")
+      + "</span></div>";
+  }
+
+  /* 八面逐面展开。身份层与内容层分段，
+     分组标题必须写明「恒定」与「可被主题覆盖」——
+     这是整套正交机制在界面上的承诺。 */
+  h += '<div class="fgroup id"><b>身份层 · 恒定，来自编号</b><span class="ln"></span>'
+    + "主题改不了，改了就不是 " + esc(p.num) + " 号了</div>";
+  FACES.filter(function (f) { return f.group === "identity"; }).forEach(function (f) {
+    h += faceHTML(p, f, "编号", true);
+  });
+  h += '<div class="fgroup mu"><b>可变层 · 可被主题覆盖</b><span class="ln"></span>'
+    + "主题写了就覆盖，没写就保留编号里的</div>";
+  FACES.filter(function (f) { return f.group !== "identity"; }).forEach(function (f) {
+    var v = (p.faces || {})[f.k];
+    var note = f.k === "hair" ? "（soft：主题指定发型才覆盖）" : "";
+    h += faceHTML(p, f, "编号" + (v ? "" : " · 本号不提供"), false, note);
+  });
+
+  /* 画法：既不随编号也不随主题，是纯画法 */
+  h += '<div class="secthead"><h3>画法</h3><span class="n">light · camera</span>'
+    + '<span class="why">不随编号也不随主题</span></div>';
+  h += '<div class="note"><b>光影　</b>' + esc(p.light || "—") + "</div>";
+  h += '<div class="note"><b>镜头　</b>' + esc(p.camera || "—") + "</div>";
+
+  /* 怎么改这一号 */
+  if (p.read) {
+    h += '<div class="secthead"><h3>怎么改这一号</h3><span class="n">read</span>'
+      + '<span class="why">创作解释，是判断不是事实</span></div>';
+    h += '<div class="note">' + esc(p.read) + "</div>";
+  }
+  if (p.guard && p.guard.length) {
+    h += '<div class="secthead"><h3>护栏</h3><span class="n">' + p.guard.length + " 条</span>"
+      + '<span class="why">强制进负面词，权重对它们无效</span></div>';
+    h += '<div class="note warn"><b>强制排除　</b>' + esc(p.guard.join("、")) + "</div>";
+  }
+
+  /* 来源 */
+  if (p.fact && p.fact.length) {
+    h += '<div class="secthead"><h3>来源</h3><span class="n">fact</span>'
+      + '<span class="why">历史事实，可外部核验</span></div>';
+    h += '<div class="note">' + p.fact.map(function (x) { return "· " + esc(x); }).join("<br>") + "</div>";
+  }
+
+  /* 用法指引。never 一段必须最显眼 ——
+     「该改哪一层」不写出来，用户就会去改骨相，
+     而改完他手里的编号就不存在了。 */
+  var guide = KIT.usageGuide({ plate: p });
+  h += '<div class="secthead"><h3>用法指引</h3><span class="n">usageGuide</span>'
+    + '<span class="why">用户拿到词后的下一个动作一定是「改点东西」</span></div>';
+  h += '<div class="guide">'
+    + '<div class="keep"><span class="gk">KEEP</span><span class="gv">' + esc(guide.keep) + "</span></div>"
+    + '<div class="swap"><span class="gk">SWAP</span><span class="gv">' + esc(guide.swap) + "</span></div>"
+    + '<div class="never"><span class="gk">NEVER</span><span class="gv">' + esc(guide.never) + "</span></div>"
+    + (guide.hint ? '<div class="hint">' + esc(guide.hint) + "</div>" : "")
+    + "</div>";
+
+  /* 授权与风险的完整说明：徽章只有两个字，这里给的是后果 */
+  var t = TIER[p.rights], r = RISK[p.risk];
+  h += '<div class="secthead"><h3>授权与风险</h3><span class="n">rights · risk</span></div>';
+  if (t) {
+    h += '<div class="note ' + (p.rights === "R3" || p.rights === "R2" ? "hard" : "") + '">'
+      + "<b>授权 " + esc(t.k + " " + t.zh) + "　</b>" + esc(t.desc)
+      + "<br>能做什么：" + esc(t.can) + "</div>";
+  }
+  if (r) {
+    h += '<div class="note ' + (r.k === "identity" ? "hard" : (r.k === "none" ? "" : "warn")) + '">'
+      + "<b>风险 " + esc(r.k + " " + r.zh) + "　</b>" + esc(r.desc) + "</div>";
+  }
+  var insp = RIGHTS && RIGHTS.inspect ? RIGHTS.inspect([p]) : null;
+  if (insp && insp.disclaimer) {
+    h += '<div class="note warn">' + esc(insp.disclaimer) + "</div>";
+  }
+  h += '<div class="note">' + esc((DB.NAME_POLICY || {}).notice || "") + "</div>";
+
+  h += "</div>";
+  return h;
+}
+function faceHTML(p, f, from, locked, note) {
+  var v = (p.faces || {})[f.k];
+  var ok = v && (v.c || v);
+  var cls = f.group === "identity" ? "id" : "mu";
+  var badge = locked ? "恒定" : (note ? "可被主题覆盖" : "可被主题覆盖");
+  var html = '<div class="face ' + cls + (ok ? "" : " gap") + '">'
+    + '<div class="bar"></div><div class="fin">'
+    + '<div class="fh"><span class="fk">' + esc(f.zh) + "</span>"
+    + '<span class="from">' + esc(from) + "</span>"
+    + '<span class="from" style="border-color:transparent;background:transparent">'
+    + (ok ? esc(badge) : "空面") + "</span></div>";
+  if (ok) {
+    html += '<div class="fv">' + esc(v.c || v) + "</div>";
+    if (v.t) html += '<div class="ft">' + esc(v.t) + "</div>";
+  } else {
+    html += '<div class="fv" style="color:var(--rk-lookalike)">本号不提供这一面 —— '
+      + "scene 只能由主题给出，留空会报出来而不是回退到编号</div>";
+  }
+  if (note) html += '<div class="ft" style="color:var(--content)">' + esc(note) + "</div>";
+  html += "</div></div>";
+  return html;
+}
+function renderDetail() {
+  var p = PLATE[S.num];
+  el("detHint").textContent = p ? p.num + " · " + p.cat : "";
+  el("det").innerHTML = detailHTML();
+  /* 浮层的开关由 S.det 决定，每次渲染都同步一次。
+     不同步的话会出现「点了卡片没反应」—— 内容其实已经换了，
+     只是浮层没打开，而那正是最难自查的一类「没反应」。 */
+  var m = el("mask");
+  if (m) m.className = S.det ? "mask on" : "mask";
+}
+function openDetail(num) {
+  if (num) S.num = num;
+  S.det = true;
+  renderDetail();
+}
+function closeDetail() {
+  S.det = false;
+  renderDetail();
+}
+
+/* ============================================================
+ * 三 精品出图（逐项手选）
+ * ============================================================ */
+/* ---------- 编号分组表 ----------
+   全库只有这一份「编号怎么分组」，精品出图 / 一句话出图 / 组图 三页共用。
+   三页各拼一次的话，改一次分组要改三处，漏一处就是
+   「同一个编号在两页里不在同一组」——而这种不一致不会报错。
+
+   两段的分组键不同，这是有意的，不是偷懒：
+     原型段 → 按气质六类（cat）      ：这一段本来就是按气质区排的
+     全球段 → 按文化圈八圈（region）：这一段是先按圈铺的广度
+   分组键的顺序一律取 ALBUM_TAXO，不取数据里首次出现的顺序。 */
+function groupTables() {
+  var proto = [], globe = [];
+  (DB.ALBUM || []).forEach(function (p) {
+    (p.region ? globe : proto).push(p);
+  });
+  /* 按声明顺序分组。不在册的类目接在末尾，不丢条目。 */
+  function groupBy(list, order, keyFn) {
+    var seen = [], map = {};
+    list.forEach(function (p) {
+      var k = keyFn(p);
+      if (!map[k]) { map[k] = []; seen.push(k); }
+      map[k].push(p);
+    });
+    return taxoOrder(order, seen).map(function (k) {
+      return { title: k, list: map[k] || [] };
+    }).filter(function (g) { return g.list.length > 0; });
+  }
+  return [
+    { title: "原型段 · 不限地域的类型", list: proto,
+      groups: groupBy(proto, ((DB.ALBUM_TAXO || {}).kinds || []), function (p) { return p.cat; }) },
+    { title: "全球段 · 按文化圈", list: globe,
+      groups: groupBy(globe, ((DB.ALBUM_TAXO || {}).circles || []), function (p) { return p.region; }) }
+  ].filter(function (g) { return g.list.length > 0; });
+}
+
+/* ---------- 一张编号卡 ----------
+   三个编号选择器共用同一个渲染函数（同一张卡在三页里长得一样）。
+
+   卡面右上角的小标 rgx 取的是**这张卡自己的细类**，
+   不是「当前选中的那条属于哪个段」——
+   早先这里是按当前选中判断的，于是选中全球段某条时，
+   原型段 48 张卡的小标全变空白，看着像那 48 条没有归类。
+   归类信息跟着卡片走，跟着选中走就会在别的卡上撒谎。
+     · 全球段：标 culture（唐 / 波斯 / 毛利…）—— 圈名已由组标题给了，
+       卡上再给圈名是重复，给细类才是新信息
+     · 原型段：标 cat（气质区）—— 组标题同样是 cat，但卡上带一条，
+       扫到跨段结果时不用回头看标题 */
+function plateSub(p) {
+  return p.culture || p.cat || "";
+}
+function plateCard(x, act, selNum, extraStyle) {
+  return '<button class="pcard' + (selNum === x.num ? " on" : "") + '" data-act="' + act
+    + '" data-num="' + x.num + '"'
+    + ' title="' + esc((x.region ? x.region + " · " : "") + x.cat + " · " + x.zh) + '"'
+    + (extraStyle ? ' style="' + extraStyle + '"' : "") + '>'
+    + '<span class="n"><span class="tw" style="background:' + chipTone(x) + '"></span>'
+    + '<span class="nn">' + esc(x.num) + '</span>'
+    + '<span class="rgx">' + esc(plateSub(x)) + "</span></span>"
+    + '<span class="z">' + esc(x.zh) + "</span></button>";
+}
+/* 一段折叠里的全部卡（组标题 + 网格）。open 由调用方按「选中在哪段」给。 */
+function segHTML(g, act, selNum, open) {
+  var chips = g.groups.map(function (grp) {
+    return '<div class="tghead">' + esc(grp.title) + " · " + grp.list.length + "</div>"
+      + '<div class="pgrid">' + grp.list.map(function (x) {
+          return plateCard(x, act, selNum);
+        }).join("") + "</div>";
+  }).join("");
+  return '<details class="bseg"' + (open ? " open" : "") + '><summary>'
+    + esc(g.title) + "<small>" + g.list.length + " 条</small></summary>"
+    + '<div class="segbody"><div class="pgridbox">' + chips + "</div></div></details>";
+}
+/* 编号选择器：当前选中常显 + 两段折叠。三页共用。 */
+function platePicker(act, selNum) {
+  return groupTables().map(function (g) {
+    var here = g.list.some(function (x) { return x.num === selNum; });
+    return segHTML(g, act, selNum, here);
+  }).join("");
+}
+
+/* ---------- 主题选择器 ----------
+   主题也从「一行横排胶囊」改成多行网格卡：
+   40 个胶囊换行排下来，一屏只能看到两行，找一个主题要滚很久，
+   而胶囊宽度跟着文字长短变，列不对齐，眼睛没有可沿之扫的竖线。
+   网格卡宽度一致后，编号那一行自然形成竖线。
+
+   精品出图轴二（单选 tnum）/ 一句话出图手选（ctheme）/
+   组图勾选（swpick，可多）三处共用同一张卡，只是 on 的判据不同：
+   单选看「是不是当前」，多选看「有没有勾上」。 */
+function themeCard(t, act, selNum, picked) {
+  var on = picked ? !!picked[t.num] : (selNum === t.num);
+  return '<button class="tcard' + (on ? " on" : "") + '" data-act="' + act + '" data-num="'
+    + t.num + '" title="' + esc(t.text || "") + '">'
+    + '<span class="tz">' + esc(t.zh) + "</span>"
+    + '<span class="tn2">' + esc(t.num) + "</span></button>";
+}
+/* catFilter 给组图用（只显示当前类目）。 */
+function themeGridHTML(act, selNum, picked, catFilter) {
+  return themeGroups().map(function (g) {
+    if (catFilter && catFilter !== "全部" && g.cat !== catFilter) return "";
+    return '<div class="tghead">' + esc(g.cat) + " · " + g.list.length + "</div>"
+      + '<div class="tgrid">' + g.list.map(function (t) {
+          return themeCard(t, act, selNum, picked);
+        }).join("") + "</div>";
+  }).join("");
+}
+
+function renderBench() {
+  el("mainH").innerHTML = "精品出图<span class=\"hint\">逐项手选，实时出词</span>";
+
+  var p = PLATE[S.num];
+  var f = "";
+
+  /* 页面关系的说明放在轴一上方 —— 新用户最常见的困惑是
+     「这几个页面是不是各管各的、我在这里改了那边知道吗」。
+     答案必须写在界面上：四页共享同一套轴，改一处处处生效。
+     写在 README 里不算数，困惑发生在页面上。 */
+  f += '<div class="note">这四页共用<b>同一套当前选择</b>：'
+    + "画廊选的人、这里调的轴、一句话出图自动配的编号、抽卡抽到的组合，"
+    + "改任何一处，其他页的复制与出词都会跟着变 —— "
+    + '顶栏末尾的「此刻：…」随时显示当前组合。</div>';
+
+  if (!p) { el("main").innerHTML = '<div class="empty">库里没有可用编号</div>'; return; }
+
+  /* 轴一：编号。80 条平铺是「翻不完的一面墙」，
+     所以按段折叠：当前选中永远可见（不用展开就能确认自己选了谁），
+     两个段（原型段六类 / 全球段八圈）各自折叠，点开才出 chips。
+     选完自动收起 —— pnum 事件里关闭 details。
+     组表由 groupTables() 现算，全球段扩圈时不用改这里。 */
+  /* 当前选中常显：不用展开就能确认自己选了谁。 */
+  var cur = plateCard(p, "pnum", p.num, "max-width:190px");
+  f += '<div class="axis"><div class="ah"><span class="ax">轴一</span><b>编号</b>'
+    + '<i>' + (DB.ALBUM || []).length + " 条</i>"
+    + '<span class="d">决定这个人是谁 · 身份层五面由它定，主题改不了</span></div>'
+    + '<div class="strip" style="margin-bottom:6px">' + cur + "</div>"
+    + platePicker("pnum", p.num) + "</div>";
+
+  /* 轴二：主题。按 cat 分组成网格，40 个全列出。 */
+  var th = themeOfNum(S.theme);
+  f += '<div class="axis"><div class="ah"><span class="ax">轴二</span><b>主题</b>'
+    + '<i>' + (DB.THEMES || []).length + " 个</i>"
+    + '<span class="d">决定画什么 · 覆盖妆造与场景，不动身份层</span></div>'
+    /* tgridbox 默认只有 2px 内边距（它多半嵌在已经有 padding 的容器里）；
+       直接放在 .axis 里就要自己补，否则卡边贴着轴框 —— 看着像没画完。 */
+    + '<div class="tgridbox" style="padding:8px 9px 2px">'
+    + themeGridHTML("tnum", S.theme, null) + "</div>"
+    + '<div class="body" style="padding:0 9px 9px"><div class="note">'
+    + (th ? "<b>" + esc(th.cat) + " · " + esc(th.zh) + "　</b>" + esc(th.text || "")
+         + (th.faces && th.faces.hair
+            ? '<br>本主题指定了发型 —— hair 面会被覆盖（soft 面：主题写了才覆盖）' : "")
+       : "当前没有主题 —— 词面里不会有场景面，编号单独出图")
+    + "</div></div></div>";
+
+  /* 轴三：门类。
+   它排在模式前面不是编号顺序问题，是依赖关系：
+   门类先定「怎么画」，模式再定「成品有没有字」。
+   先定成品形态再定画法，顺序是反的。 */
+  var medBtns = (DB.MEDIUMS || []).map(function (m) {
+    return '<button class="mbtn' + (S.medium === m.k ? " on" : "") + '" data-act="medium" data-v="'
+      + m.k + '" title="' + esc(m.desc + (m.caution ? "\n\n注意：" + m.caution : "")) + '">'
+      + "<b>" + esc(m.zh) + "</b><i>" + esc(m.desc || "") + "</i></button>";
+  }).join("");
+  var md = (DB.MEDIUMS || []).filter(function (m) { return m.k === S.medium; })[0];
+  f += '<div class="axis"><div class="ah"><span class="ax">轴三</span><b>视觉门类</b>'
+    + '<i>' + (DB.MEDIUMS || []).length + " 种</i>"
+    + '<span class="d">决定这张图怎么画出来 · 改写身份层的表达方式，但不改她是谁</span></div>'
+    + '<div class="body"><div class="modes">' + medBtns + "</div>"
+    + (md && md.caution ? '<div class="muse warn"><b>这个门类画不出来的东西　</b>'
+      + esc(md.caution) + "</div>" : "")
+    + "</div></div>";
+
+  /* 模式：四个按钮，每个都带 useWhen —— 为什么分模式是这里最要紧的一句。 */
+  var modeBtns = (DB.MODES || []).map(function (m) {
+    return '<button class="mbtn' + (S.mode === m.k ? " on" : "") + '" data-act="mode" data-v="' + m.k + '" title="'
+      + esc(m.desc || "") + '"><b>' + esc(m.zh) + "</b><i>" + esc(m.desc || "") + "</i></button>";
+  }).join("");
+  var mo = (DB.MODES || []).filter(function (m) { return m.k === S.mode; })[0];
+  f += '<div class="axis"><div class="ah"><span class="ax">轴四</span><b>呈现模式</b>'
+    + '<i>' + (DB.MODES || []).length + " 种</i>"
+    + '<span class="d">决定要不要写字 · 不碰身份层，换了模式她还是那个人</span></div>'
+    + '<div class="body"><div class="modes">' + modeBtns + "</div>"
+    + (mo ? '<div class="muse"><b>什么时候用　</b>' + esc(mo.useWhen || "") + "</div>" : "")
+    + "</div></div>";
+
+  /* 实时出词 */
+  f += outHTML();
+
+  el("main").innerHTML = f;
+}
+
+function composeNow() {
+  return KIT.compose(DB, S.num, { themeId: S.theme, mode: S.mode, medium: S.medium });
+}
+function outHTML() {
+  var r = composeNow();
+  if (!r.ok) {
+    return '<div class="out"><div class="ob">' + esc(r.why || "出词失败") + "</div>"
+      + ((r.cand || []).length
+          ? '<div class="of">最近候选：' + r.cand.map(function (c) {
+              return '<button class="btn" data-act="pnum" data-num="' + c.num + '">'
+                + esc(c.num + " " + c.zh) + "</button>";
+            }).join("") + "</div>"
+          : "") + "</div>";
+  }
+  var tags = (r.tags && r.tags[S.plat]) || [];
+  var body = (S.plat === "nl") ? r.nl : tags.join("，");
+  var meta = { sd:"Stable Diffusion", mj:"Midjourney", flux:"FLUX", nl:"自然语言", gpt:"GPT 图像" };
+
+  var tabs = Object.keys(KIT.PLATFORMS || {}).map(function (k) {
+    return '<button class="tab' + (S.plat === k ? " on" : "") + '" data-act="plat" data-v="' + k + '">'
+      + esc(k.toUpperCase()) + "</button>";
+  }).join("");
+
+  var h = '<div class="out">'
+    + '<div class="oh"><span class="t">' + esc(meta[S.plat] || S.plat) + "</span>"
+    + '<span class="badge">' + esc(r.plate.num) + "</span>"
+    + (r.theme ? '<span class="badge" style="color:#d9b988;border-color:var(--content-line);background:var(--content-soft)">'
+        + esc(r.themeId || S.theme) + "</span>" : "")
+    + '<span class="badge">' + esc(r.mode.zh) + "</span>"
+    + '<span class="sp"></span>' + tierBadge(r.plate.rights) + "</div>"
+
+    /* 面来源表：身份层与内容层分色，每面标出来自编号还是主题。
+       这一块是「正交机制在起作用」最直接的证据。 */
+    + '<div class="chips">' + FACES.map(function (f) {
+        var x = r.faces[f.k];
+        if (!x || !x.c) return "";
+        var cl = f.group === "identity" ? "id" : "mu";
+        return '<span class="fc ' + cl + '" data-face="' + f.k + '" data-src="' + esc(x.from) + '" data-txt="'
+          + esc(x.c) + '" style="color:' + (cl === "id" ? "#8fc4d4" : "#d9b988")
+          + ';background:' + (cl === "id" ? "var(--ident-soft)" : "var(--content-soft)")
+          + ';border-color:' + (cl === "id" ? "var(--ident-line)" : "var(--content-line)") + '">'
+          + esc(f.zh) + " · " + esc(x.from) + "</span>";
+      }).join("")
+    + '<span style="color:var(--ink3);border-color:var(--line);background:var(--panel2)">'
+    + (r.loose || []).map(function (x) { return esc(x.from) + " " + clip(x.c, 12); }).join(" / ")
+    + "</span></div>"
+
+    + '<div class="ob" id="promptBody">' + esc(body || "（没有词）") + "</div>"
+    + '<div class="of"><div class="tabs">' + tabs + "</div>"
+    + '<span style="flex:1"></span>'
+    + '<button class="btn p" data-act="copy" data-cp="' + esc(body || "") + '">复制本套</button></div>';
+
+  /* 负面词 */
+  if ((r.neg || []).length) {
+    h += '<div class="chips"><span style="color:var(--rk-lookalike);border-color:#5c452a;background:#2a2118">'
+      + "负面词 " + r.neg.length + " 条</span>"
+      + r.neg.map(function (x) { return "<span>" + esc(x) + "</span>"; }).join("")
+      /* 负面词单独一个复制按钮：跟正面词混在一条里，SD 用户粘进 Positive 框
+         就把「不要文字」写成了「要文字」，而这四个模式的负面词第一条正是「文字」。 */
+      + '<button class="btn neg" data-act="copy" data-cp="' + esc(negStrOf(r.neg))
+      + '" title="SD 填 Negative 框，MJ 用 --no（本按钮已按平台带前缀）">复制负面词</button>'
+      + "</div>";
+  }
+  h += "</div>";
+
+  /* 身份层 / 内容层：把「哪些面来自谁」显式列一遍 ——
+     这段是「换主题后身份层不变」这句话的可视证据。 */
+  var idList = [], muList = [];
+  FACES.forEach(function (f) {
+    var x = r.faces[f.k];
+    var line = f.zh + " ← " + ((x && x.c) ? x.from : "空面");
+    if (f.group === "identity") idList.push(line); else muList.push(line);
+  });
+  h += '<div class="note" style="margin-top:8px"><b style="color:var(--ident)">身份层 · 来自编号，本号给的</b><br>'
+    + esc(idList.join("　"))
+    + '<br><b style="color:var(--content)">内容层 · 可被主题覆盖</b><br>'
+    + esc(muList.join("　"))
+    + "</div>";
+
+  /* warns / rights / missing 分块显示 */
+  h += '<div class="warns">';
+  (r.warns || []).forEach(function (w) {
+    h += '<div class="w">' + esc(w) + "</div>";
+  });
+  if (r.rights) {
+    h += '<div class="w ok"><b>授权 ' + esc(r.rights.worst || "—") + "　</b>"
+      + esc(r.rights.can || "") + (r.rights.items || []).map(function (i) {
+        return esc(i.num + " " + i.zh);
+      }).join("　")
+      + (r.rights.disclaimer ? "<br>" + esc(r.rights.disclaimer) : "") + "</div>";
+  }
+  (r.missing || []).forEach(function (m) {
+    h += '<div class="w"><b>缺 ' + esc(m.zh) + "　</b>"
+      + esc(m.reason || "本号与主题都没给这一面 —— 空面出来的图像默认设置") + "</div>";
+  });
+  if (!(r.warns || []).length && !(r.missing || []).length) {
+    h += '<div class="w ok">无警告：八面齐、无风险触发、授权档为 '
+       + esc((r.rights || {}).worst || "—") + "</div>";
+  }
+  h += "</div>";
+
+  /* 姓名声明在这一处再出现一次：任何出词的地方都要能看到 */
+  h += '<div class="note" style="margin-top:8px">' + esc(r.notice || "") + "</div>";
+  return h;
+}
+
+/* ============================================================
+ * 四 组图与抽卡
+ * ============================================================ */
+function renderSeries() {
+  el("mainH").innerHTML = "组图<span class=\"hint\">一个编号 × 多个主题</span>";
+  var p = PLATE[S.num];
+  var f = "";
+  if (!p) { el("main").innerHTML = '<div class="empty">库里没有可用编号</div>'; return; }
+
+  var ths = (DB.THEMES || []).filter(function (t) {
+    return S.swCat === "全部" || t.cat === S.swCat;
+  });
+  var picked = Object.keys(S.swPicked).filter(function (k) { return S.swPicked[k]; });
+
+  /* 编号选择器与精品出图同一套（分段折叠 + 网格），
+     组图自己拼过一次横排胶囊：80 个胶囊横着排，
+     选的人要么一直往右滑、要么完全不知道 049 之后还有一半。
+     同一套选择器还顺带保证「一个编号在三页里位置一致」。 */
+  f += '<div class="axis"><div class="ah"><span class="ax">编号</span><b>' + esc(p.num + " " + p.zh) + "</b>"
+    + '<span class="d">组图是画册最常见的用法：「这一号我要出一组图」</span></div>'
+    + '<div class="strip">' + plateCard(p, "pnum", p.num, "max-width:190px") + "</div>"
+    + platePicker("pnum", p.num) + "</div>";
+
+  f += '<div class="tkbox"><div class="tl">勾主题</div>'
+    + '<div class="filters" style="margin:0 0 6px">'
+    + '<button class="fchip' + (S.swCat === "全部" ? " on" : "") + '" data-act="swcat" data-v="全部">全部<small>'
+    + (DB.THEMES || []).length + "</small></button>"
+    + themeGroups().map(function (g) {
+        return '<button class="fchip' + (S.swCat === g.cat ? " on" : "") + '" data-act="swcat" data-v="'
+          + esc(g.cat) + '">' + esc(g.cat) + "<small>" + g.list.length + "</small></button>";
+      }).join("")
+    + "</div>"
+    + '<div class="tgridbox">' + themeGridHTML("swpick", null, S.swPicked, S.swCat) + "</div>"
+    + '<div class="row" style="margin-top:9px">'
+    + '<button class="btn" data-act="swall">全选当前</button>'
+    + '<button class="btn" data-act="swnone">清空勾选</button>'
+    + '<span style="font:11px var(--mono);color:var(--ink3)">已勾 ' + picked.length
+    + " / " + ths.length + "</span>"
+    + '<span style="flex:1"></span>'
+    + '<span style="font-size:11px;color:var(--ink3)">勾了就按勾的出；没勾就按类目全量 sweep</span>'
+    + '<button class="btn p" data-act="sweep" data-mode="' + S.mode + '">组图</button>'
+    + "</div></div>";
+
+  if (S.swOut) {
+    f += '<div class="secthead"><h3>结果</h3><span class="n">' + S.swOut.length + " 张</span>"
+      + '<span class="why">' + esc(S.swOut.why || "") + "</span></div>";
+    f += S.swOut.length
+      ? '<div class="sgrid">' + S.swOut.map(seriesCard).join("") + "</div>"
+      : '<div class="empty">这个组合下没有可出的图</div>';
+  }
+  el("main").innerHTML = f;
+}
+function seriesCard(item) {
+  var r = item.result;
+  if (!r || !r.ok) {
+    return '<div class="scard"><div class="st"><span class="pn">' + esc(item.themeId)
+      + '</span><span class="sp"></span></div><div class="sb" style="color:var(--rk-lookalike)">'
+      + esc((r && r.why) || "出词失败") + "</div></div>";
+  }
+  var tags = (r.tags && r.tags.sd) || [];
+  var t = TIER[r.plate.rights];
+  return '<div class="scard">'
+    + '<div class="st"><span class="pn">' + esc(r.plate.num) + "</span>"
+    + '<span class="tn">' + esc(item.themeZh || "") + "</span>"
+    + '<span class="sp"></span>' + tierBadge(r.plate.rights) + "</div>"
+    + '<div class="sw" style="background:' + swatchOf(r.plate) + '"></div>'
+    + '<div class="sb">' + esc(clip(tags.join("，"), 190)) + "</div>"
+    + '<div class="sf"><span class="badge">' + esc(r.mode.zh) + "</span>"
+    + '<span style="font:10px var(--mono);color:var(--ink3)">' + esc(item.themeId) + "</span>"
+    + '<span style="flex:1"></span>'
+    + (t && (r.plate.rights === "R2" || r.plate.rights === "R3")
+       ? '<span class="sdup">需改写</span>' : "")
+    + '<button class="btn k" data-act="pick" data-num="' + esc(r.plate.num) + '">选中</button>'
+    + '<button class="btn p" data-act="copy" data-cp="' + esc(tags.join("，"))
+    + '" title="只复制正面词。负面词在上方「一键复制全部」里逐组给出">复制</button>'
+    + "</div></div>";
+}
+
+function renderGacha() {
+  el("mainH").innerHTML = "抽卡<span class=\"hint\">随机组合 —— 不用先选任何东西，点「抽」就行</span>";
+  var f = "";
+
+  /* 抽卡的定位说明。它和精品出图是两种玩法：
+     精品出图是你已经想好了、逐项确认；抽卡是你没想好、让库替你撞组合。
+     所以抽卡页不提供主题选择 —— 主题正是被随机的那根轴，
+     选了主题再抽卡就只剩两根轴可随机，玩法就变了。
+     想固定某根轴用卡片上的锁。 */
+  f += '<div class="note">抽卡 = <b>随机组合</b>：编号、主题、门类各随机抽一条，'
+    + "铺开 8 组给你挑。看中哪组点「用这组」送进精品出图细调，"
+    + "或直接复制。想固定某根轴（比如锁定编号只换主题），"
+    + "用每张卡上的锁。</div>";
+
+  var pool = GACHA.pool(DB, {});
+  f += '<div class="tkbox"><div class="tl">池规模 · 现算不缓存</div>'
+    + '<div class="tkstat">'
+    + pool.axes.map(function (a) {
+        return '<div><span class="k">' + esc(a.zh) + "</span><span class=\"v\">"
+          + a.n + " <small style=\"color:var(--ink3)\">条</small></span></div>";
+      }).join("")
+    + '<div><span class="k">组合空间</span><span class="v"><b>' + pool.space + "</b></span></div>"
+    + '<div><span class="k">空轴</span><span class="v">' + (pool.empty.length
+        ? '<span style="color:var(--rk-lookalike)">' + esc(pool.empty.map(function (e) { return e.zh; }).join("、"))
+        + "</span>" : '<span style="color:var(--st-tested)">无</span>') + "</span></div>"
+    + "</div>"
+    + '<div class="note" style="margin-top:8px">组合空间 = 各轴候选数连乘，'
+    + "但<b>实际可抽的受语义护栏约束</b> —— 抽卡不会说「这一组不合理」，"
+    + "只会给你一张奇怪的结果图，而用户多半以为是自己主题选得怪。"
+    + "所以 blocked 数必须给出来：只报总空间会让人以为抽卡范围比实际大得多。</div>"
+    + "</div>";
+
+  /* 开关 */
+  f += '<div class="tkbox"><div class="tl">抽卡设置</div>'
+    + '<div class="row">'
+    + '<span style="font-size:11px;color:var(--ink3);flex:0 0 34px">seed</span>'
+    + '<input type="text" id="gseed" style="flex:1" placeholder="留空 = 随机；填同一个 seed 必得同一组" value="'
+    + esc(S.gSeed) + '">'
+    + '<span style="font-size:11px;color:var(--ink3);flex:0 0 30px">张数</span>'
+    + '<input type="number" id="gn" min="1" max="24" style="flex:0 0 62px" value="' + S.gN + '">'
+    + '<button class="btn" data-act="grandom">换个 seed</button>'
+    + '<button class="btn p" data-act="roll">一键生成 ' + S.gN + " 组</button>"
+    + "</div>"
+    + '<div class="sw2">'
+    + '<label class="toggle' + (S.gSemantic ? " on" : "") + '" data-act="tsem">'
+    + '<input type="checkbox"' + (S.gSemantic ? " checked" : "") + '>语义护栏 ' + (S.gSemantic ? "开" : "关")
+    + "</label>"
+    + '<label class="toggle' + (S.gForce ? " on" : "") + '" data-act="tforce">'
+    + '<input type="checkbox"' + (S.gForce ? " checked" : "") + ">强制换模式 " + (S.gForce ? "开" : "关") + "</label>"
+    + '<span style="font-size:11px;color:var(--ink3)">分类过滤</span>'
+    + '<button class="fchip' + (S.gCat === "全部" ? " on" : "") + '" data-act="gcat" data-v="全部">全部分类</button>'
+    + sortedCats(DB.ALBUM || []).map(function (c) {
+        var n = (DB.ALBUM || []).filter(function (x) { return x.cat === c; }).length;
+        return '<button class="fchip' + (S.gCat === c ? " on" : "") + '" data-act="gcat" data-v="' + esc(c)
+          + '">' + esc(c) + "<small>" + n + "</small></button>";
+      }).join("")
+    + "</div>"
+    + '<div class="note" style="margin-top:8px"><b>语义护栏</b>：按类目对判，'
+    + "挡掉确实荒谬的组合（如「古典 × 都市日常」）。判据刻意保守 —— "
+    + "太严会让抽卡退化成「只能抽到安全组合」，那和没抽卡一样。<br>"
+    + "<b>强制换模式</b>：模式轴权重 0，默认不参与随机；"
+    + "打开后每组都重抽模式，纯图模式可能因此变图文、海报。</div>"
+    + "</div>";
+
+  /* 冲突表：一条不解释的抽卡结果只会让人以为是随机噪声，而它其实是规则 */
+  f += '<div class="tkbox"><div class="tl">语义冲突表 · CAT_CLASH</div>'
+    + Object.keys(GACHA.CAT_CLASH || {}).map(function (k) {
+        return '<div class="note warn" style="margin-top:5px"><b>' + esc(k) + "</b> 配不进 "
+          + esc(GACHA.CAT_CLASH[k].join("、")) + "</div>";
+      }).join("")
+    + "</div>";
+
+  if (S.gRolls) {
+    var R = S.gRolls;
+    if (!R.ok) {
+      f += '<div class="warns"><div class="w">' + esc(R.why || "抽卡失败")
+        + (R.empty && R.empty.length ? "<br>" + esc(R.empty.map(function (e) {
+            return e.zh + (e.reason ? "：" + e.reason : "");
+          }).join("；")) : "") + "</div></div>";
+    } else {
+      var blocked = R.rolls.reduce(function (a, r) { return a + (r.semanticBlocked || 0); }, 0);
+      f += '<div class="tkbox"><div class="tl">本轮统计</div><div class="tkstat">'
+        + '<div><span class="k">seed</span><span class="v"><b>' + R.baseSeed + "</b></span></div>"
+        + '<div><span class="k">组数</span><span class="v">' + R.total + "</span></div>"
+        + '<div><span class="k">重复</span><span class="v'
+        + (R.dups ? " warnv" : "") + '"><b>' + R.dups + "</b> · " + (R.dupRate * 100).toFixed(0) + "%</span></div>"
+        + '<div><span class="k">语义挡掉</span><span class="v'
+        + (blocked ? " warnv" : "") + '"><b>' + blocked + "</b> 次</span></div>"
+        + '<div><span class="k">护栏</span><span class="v">' + (S.gSemantic ? "开" : "关") + "</span></div>"
+        + "</div>"
+        + (R.dups ? '<div class="note warn" style="margin-top:8px"><b>重复率 '
+          + (R.dupRate * 100).toFixed(0) + "%</b> —— 池子在这个过滤条件下太小，"
+          + "抽出来的东西越抽越像。放宽分类过滤或关掉护栏可缓解。"
+          + "如实报出来而不是假装每次都不一样。</div>" : "")
+        + "</div>";
+
+      f += '<div class="secthead"><h3>抽到的组合</h3><span class="n">' + R.rolls.length
+        + " 组</span><span class=\"why\">锁住某一轴后重抽，只动没锁的那几轴</span></div>"
+        + '<div class="row" style="margin-bottom:9px">'
+        + '<button class="btn p" data-act="copyall">复制全部 ' + R.rolls.length + " 组</button>"
+        + '<button class="btn" data-act="roll">全部重抽</button>'
+        + '<span style="font-size:11px;color:var(--ink3)">'
+        + "每张卡下面可单独换编号 / 换主题 / 换模式 / 整组重抽</span></div>"
+        + '<div class="sgrid">' + R.rolls.map(rollCard).join("") + "</div>";
+    }
+  }
+
+  el("main").innerHTML = f;
+}
+/* 抽卡结果的 mode 候选有两种形状：
+   非 forceMode 时 roll 返回 db.MODES 里的对象（有 k 没 id），
+   forceMode 时返回 pool 的候选（有 id）。两种都要能取到模式名。 */
+function modeIdOf(m) {
+  if (!m) return "plain";
+  return m.id || m.k || "plain";
+}
+/* 锁与重抽的两个小按钮。
+   抽卡的乐趣在「换一个轴看看」而不是每次整组推翻重来，
+   所以「只换主题」必须是一个单独的动作 ——
+   只有「全部重抽」的话，抽十次也碰不到「同一个人换场景」的对比。 */
+function lockBtn(i, axis, zh) {
+  var on = !!(S.gLocks[i] && S.gLocks[i][axis]);
+  return '<button class="mini' + (on ? " on" : "") + '" data-act="glock" data-i="' + i
+    + '" data-axis="' + axis + '" title="锁住后，重抽不会换这一轴">锁' + zh + "</button>";
+}
+function reBtn(i, axis, zh) {
+  return '<button class="mini" data-act="greroll" data-i="' + i + '" data-axis="' + axis
+    + '">' + zh + "</button>";
+}
+function rollCard(r, i) {
+  var res = r.result;
+  var mid = modeIdOf(r.picked.mode);
+  var mo = (DB.MODES || []).filter(function (m) { return m.k === mid; })[0] || {};
+  var tags = (res && res.tags && res.tags.sd) || [];
+  var th = r.picked.theme || {};
+  return '<div class="scard">'
+    + '<div class="st"><span class="pn">' + esc((r.picked.plate || {}).id || "—") + "</span>"
+    + '<span class="tn">' + esc((r.picked.plate || {}).zh || "") + "</span>"
+    + '<span class="sp"></span>'
+    + (r.dup ? '<span class="sdup">重复</span>' : "") + "</div>"
+    + '<div class="st" style="border-top:0"><span class="badge" style="color:#d9b988;border-color:var(--content-line);background:var(--content-soft)">'
+    + esc(th.id || "—") + " " + esc(th.zh || "") + "</span>"
+    + '<span class="badge">' + esc(mo.zh || mid) + "</span>"
+    + '<span style="flex:1"></span>'
+    + '<span style="font:10px var(--mono);color:var(--ink3)">seed ' + esc(r.seed) + "</span></div>"
+    + (res && res.ok ? '<div class="sw" style="background:' + swatchOf(res.plate) + '"></div>'
+      + '<div class="sb">' + esc(clip(tags.join("，"), 170)) + "</div>" : "")
+    + '<div class="sf">'
+    + (r.semanticBlocked
+        ? '<span class="sdup" title="被语义护栏挡掉的候选数">挡 ' + r.semanticBlocked + "</span>" : "")
+    + '<button class="btn k" data-act="use" data-num="' + esc((r.picked.plate || {}).id || "")
+    + '" data-theme="' + esc(th.id || "") + '" data-mode="' + esc(mid) + '">用这组</button>'
+    + '<button class="btn p" data-act="copy" data-cp="' + esc(tags.join("，"))
+    + '" title="只复制正面词。负面词在「一键复制全部」里逐组给出">复制</button>'
+    /* 这一组的负面词不能用编号去现算：那个算的是全局 S.theme/S.mode，
+       而这一组的主题与模式是它自己抽到的。错配最典型的后果是
+       图文组的「不要文字」被加到纯图组，模型照样加字。 */
+    + '<button class="btn neg" data-act="rneg" data-i="' + i
+    + '" title="复制这一组的负面词 —— SD 填 Negative 框，MJ 已带 --no">负面词</button>'
+    + "</div>"
+    + '<div class="sf lockbar">'
+    + lockBtn(i, "plate", "编号") + lockBtn(i, "theme", "主题") + lockBtn(i, "mode", "模式")
+    + '<span style="width:8px"></span>'
+    + reBtn(i, "plate", "换编号") + reBtn(i, "theme", "换主题")
+    + reBtn(i, "mode", "换模式") + reBtn(i, "all", "整组重抽")
+    + "</div></div>";
+}
+
+/* 只动一个轴的重抽。
+   实现方式：整组重抽一次，再把不该动的轴从旧组里换回来。
+   为什么不「只对某一轴重新随机」：主题要过语义护栏，
+   而护栏是按「这个编号配这个主题」判的 ——
+   单独换主题就绕过了护栏，抽出来的组合可能正是被挡掉的那类。
+   整组重抽再回填，护栏依然在链路里。 */
+function rerollOne(i, axis) {
+  var R = S.gRolls;
+  if (!R || !R.ok || !R.rolls[i]) { toast("先抽一组"); return; }
+  var old = R.rolls[i];
+  var lock = S.gLocks[i] || {};
+  var opt = { semanticOff: !S.gSemantic, forceMode: S.gForce,
+              seed: Math.floor(Math.random() * 1e9) };
+  if (S.gCat !== "全部") opt.cats = { plate: [S.gCat] };
+  var fresh = GACHA.roll(DB, opt);
+  if (!fresh.ok) { toast("重抽失败：" + (fresh.why || "未知")); return; }
+
+  ["plate", "theme", "mode"].forEach(function (k) {
+    var shouldKeep = (axis === "all") ? !!lock[k] : (k !== axis || !!lock[k]);
+    if (shouldKeep && old.picked[k]) fresh.picked[k] = old.picked[k];
+  });
+
+  fresh.index = i;
+  fresh.seed = old.seed;
+  fresh.result = KIT.compose(DB, (fresh.picked.plate || {}).id, {
+    themeId: (fresh.picked.theme || {}).id || null,
+    mode: modeIdOf(fresh.picked.mode)
+  });
+  R.rolls[i] = fresh;
+  render();
+  toast(axis === "all" ? "整组重抽" : "只换了" + ({ plate: "编号", theme: "主题", mode: "模式" }[axis] || axis));
+}
+
+/* 一键复制全部：连着铺的 8 组，一次全带走。
+   每组带编号 / 主题 / 模式三行抬头 ——
+   只有词面的话，复制回去就分不清哪段是哪组了。 */
+function copyAllRolls() {
+  var R = S.gRolls;
+  if (!R || !R.ok) { toast("先抽一组"); return; }
+  var lines = [];
+  R.rolls.forEach(function (r, i) {
+    var res = r.result || {};
+    var tags = (res.tags && res.tags[S.plat]) || [];
+    var body = (S.plat === "nl") ? (res.nl || "") : tags.join("，");
+    lines.push("— " + (i + 1) + "　" + ((r.picked.plate || {}).id || "")
+      + " " + ((r.picked.plate || {}).zh || "")
+      + " × " + ((r.picked.theme || {}).id || "") + " " + ((r.picked.theme || {}).zh || "")
+      + " × " + modeIdOf(r.picked.mode) + "　seed " + r.seed);
+    lines.push(body);
+    /* 负面词逐组给，不合并成一条：
+       每组的模式可能不同（模式负是负面词的主要来源），
+       合并等于给其中几组配错的负面词 —— 而错配最典型的后果是
+       图文组的「不要文字」被加到纯图组，模型照样加字。 */
+    var ng = (res.neg || []);
+    if (ng.length) lines.push("负面词（" + ng.length + " 条）：" + negStrOf(ng));
+    lines.push("");
+  });
+  copyText(lines.join("\n"));
+}
+
+/* ============================================================
+ * 五 授权与合规
+ * ============================================================ */
+function rightsBody() {
+  /* 授权与合规的全部内容。抽成独立函数：
+     它原本是独立页，现在并入体检页作为收尾区块 ——
+     两处共用同一份生成逻辑，改动只改一处。 */
+  var A = DB.ALBUM || [];
+  var byRt = countsOf(A, "rights");
+  var byRk = countsOf(A, "risk");
+  var bySt = countsOf(A.map(function (p) { return { s: p.status || "written" }; }), "s");
+  var f = "";
+
+  /* 分级口径 —— 判定标准只有一条，其余都是解释 */
+  f += '<div class="note" style="margin-top:4px">'
+    + "<b>本库的分级口径：只看是否指向可识别的真人，不看画法。</b>"
+    + "「像某位明星那样画」与「画一个高颅顶长颅的女人」法律上完全不同 —— "
+    + "所以最高档不是禁用，而是「必须改写后使用」。<br>"
+    + "这条口径与画册的编号体系直接相关：编号 = 一个完整人物配方，"
+    + "而完整配方里必然带着一组能拼回某个人的特征组合。"
+    + "所以每条编号都必须显式标档，标 R3 不影响使用，只影响发布。</div>";
+
+  /* 四档分级说明表 */
+  f += '<div class="secthead"><h3>四档分级</h3><span class="n">' + (DB.RIGHT_TIERS || []).length
+    + " 档</span><span class=\"why\">档位只影响发布，不影响使用</span></div>";
+  f += '<div class="tiergrid">' + (DB.RIGHT_TIERS || []).map(function (t) {
+    var n = byRt.m[t.k] || 0;
+    return '<div class="trow"><div class="tk" style="color:' + t.color + ";border-color:" + t.color
+      + ";background:" + t.color + '18">' + esc(t.k) + "</div><div>"
+      + '<div class="tn">' + esc(t.zh) + "</div>"
+      + '<div class="td">' + esc(t.desc) + "</div>"
+      + '<div class="tc" style="color:' + t.color + ";border:1px solid " + t.color + '33;background:'
+      + t.color + '11">能做什么：' + esc(t.can) + "</div>"
+      + '<div class="distrow"><span class="dl">本库 ' + n + " 条</span>"
+      + '<span class="db"><i style="width:' + (A.length ? (n / A.length * 100).toFixed(1) : 0)
+      + "%;background:" + t.color + '"></i></span>'
+      + '<span class="dv">' + (n / A.length * 100).toFixed(1) + "%</span></div>"
+      + "</div></div>";
+  }).join("") + "</div>";
+
+  /* 全库按档位分布：编号 × 档位的交叉表 */
+  f += '<div class="secthead"><h3>全库分布</h3><span class="n">' + A.length + ' 条编号</span>'
+    + '<span class="why">现算，不写死</span></div>';
+  f += '<div class="note">'
+    + sortedCats(A).map(function (c) {
+        var sub = A.filter(function (p) { return p.cat === c; });
+        var rts = {};
+        sub.forEach(function (p) { rts[p.rights] = (rts[p.rights] || 0) + 1; });
+        return "<b>" + esc(c) + "</b>（" + sub.length + "）"
+          + (DB.RIGHT_TIERS || []).map(function (t) {
+              return t.k + " " + (rts[t.k] || 0);
+            }).join(" · ");
+      }).join("　｜　") + "</div>";
+
+  /* 风险四档 */
+  f += '<div class="secthead"><h3>风险标记</h3><span class="n">' + (DB.RISK_KINDS || []).length
+    + " 类</span><span class=\"why\">画册多一层考虑：编号比单条描述更容易被传播</span></div>";
+  f += (DB.RISK_KINDS || []).map(function (r) {
+    var n = byRk.m[r.k] || 0;
+    return '<div class="distrow" style="align-items:flex-start;margin-top:8px">'
+      + '<span class="dl" style="padding-top:2px">' + riskBadge(r.k) + "</span>"
+      + '<span style="flex:1;font-size:11.5px;color:var(--ink2);line-height:1.6">' + esc(r.desc)
+      + '<br><span style="font:11px var(--mono);color:var(--ink3)">本库 ' + n + " 条</span></span>"
+      + '<span class="dv">' + (A.length ? (n / A.length * 100).toFixed(1) : 0) + "%</span></div>";
+  }).join("");
+
+  /* 状态四档：written 是本库默认档，必须明说它意味着什么 */
+  f += '<div class="secthead"><h3>状态标注</h3><span class="n">四档</span>'
+    + '<span class="why">可信度顺序，不是完成度顺序</span></div>';
+  f += '<div class="tiergrid">' + (DB.STATUS || []).map(function (s) {
+    var n = bySt.m[s.k] || 0;
+    return '<div class="trow"><div class="tk" style="font-size:11px;color:var(--st-'
+      + s.k + ");border-color:var(--st-" + s.k + ')">' + esc(s.zh) + "</div><div>"
+      + '<div class="td">' + esc(s.desc) + "</div>"
+      + '<div class="distrow"><span class="dl">本库 ' + n + " 条</span>"
+      + '<span class="db"><i style="width:' + (A.length ? (n / A.length * 100).toFixed(1) : 0)
+      + "%;background:var(--st-" + s.k + ')"></i></span></div>'
+      + "</div></div>";
+  }).join("") + "</div>";
+  f += '<div class="note warn" style="margin-top:8px">'
+    + "<b>written 是本库的默认档</b>：七面已填满、能直接出提示词，"
+    + "<b>但没有任何一条在具体模型上跑过并留存结果记录</b>。"
+    + "徽章上带「·未验证」后缀的就是这一档。"
+    + "换模型的权重语法与出图倾向都会变 —— 写得通不等于出得来。</div>";
+
+  /* 姓名策略：条款与实际做法一起给 */
+  f += '<div class="secthead"><h3>姓名策略</h3><span class="n">NAME_POLICY</span>'
+    + '<span class="why">本库自建的硬约束，且同样不给开关</span></div>';
+  var np = DB.NAME_POLICY || {};
+  f += '<div class="trow"><div class="tk" style="font-size:11px;color:var(--rk-identity);border-color:#5f3236;background:#2a1a1c">'
+    + (np.emitNames ? "允许" : "禁止") + "</div><div>"
+    + '<div class="tn">' + esc(np.zh || "") + "</div>"
+    + '<div class="td">' + esc(np.desc || "") + "</div>"
+    + '<div class="tc" style="color:var(--rk-identity);border:1px solid #5f3236;background:#2a1a1c">'
+    + "声明：" + esc(np.notice || "") + "</div>"
+    + '<div class="td" style="margin-top:5px;color:var(--ink3)">禁入提示词的字段：'
+    + "<span class=\"mono\" style=\"color:var(--rk-lookalike)\">"
+    + esc((np.forbidden || []).join(" / ")) + "</span></div>"
+    + "</div></div>";
+  f += '<div class="note" style="margin-top:8px">'
+    + "本库无开关是有意的：姓名一进词面，编号就成了肖像指认的载体，"
+    + "而编号是要被长期复用的 —— 一个编号里藏了人名，等于这个编号每次用都在漏。"
+    + "引擎在两层做阻断（ALBUMKIT._stripNames 剥真名片段，compose 的每一面与负面词都过一遍），"
+    + "但主要手段是数据里根本不写名字。</div>";
+
+  /* 免责声明 */
+  var insp = RIGHTS && RIGHTS.inspect ? RIGHTS.inspect(A) : null;
+  f += '<div class="secthead"><h3>免责声明</h3><span class="n">RIGHTS</span>'
+    + '<span class="why">必须出现在输出里</span></div>';
+  if (insp) {
+    f += '<div class="note hard"><b>全库最严档 ' + esc(insp.worst || "—") + "　</b>"
+      + esc(insp.can || "") + "</div>";
+    f += '<div class="note hard">' + esc(insp.disclaimer || "") + "</div>";
+  }
+  f += '<div class="note">另：内部分级只覆盖「是否指向可识别真人」这一维。'
+    + "商标、艺术品、场所形象、他人肖像权，以及各平台自己的社区规范，"
+    + "都不在本库的判定范围内。发布前请自行复核。</div>";
+
+  return f;
+}
+function renderRights() {
+  /* 独立直达入口保留（详情浮层/历史链接可能引用），但页签不再露出 ——
+     它的全部内容已并入体检页。 */
+  el("mainH").innerHTML = "授权与合规<span class=\"hint\">分级是工程判断，不是法务结论</span>";
+  el("main").innerHTML = rightsBody();
+}
+
+/* ============================================================
+ * 六 自定义出图
+ *
+ * 离线版的自问自答：**为什么这一页不调模型出图。**
+ * 本库是「双击 index.html 就能用」的离线库，不联网、不装密钥。
+ * 真出图要密钥，一旦要密钥，这个库就不是离线的了 ——
+ * 所以这一页的产出是**一条可以直接贴进任何生图模型的提示词**，
+ * 而不是一张图。名字叫「出图」，指的是「配好出图要用的那一句话」。
+ *
+ * 三条纪律：
+ *   1. 用户原话是**追加**，不是覆盖。它拼在词面末尾，不参与冲突裁决 ——
+ *      参与裁决的话，「我要一张悲伤的图」就会去改骨相，
+ *      而那是身份层，改了就不是同一个人了。
+ *   2. 自动配必须给出**命中了什么词**。只给结果不给理由，
+ *      用户无法判断该不该信；而猜错的推荐被照抄，比没有推荐更糟。
+ *   3. 没命中就直说没命中，不偷偷给随机结果。
+ * ============================================================ */
+var RATIOS = [
+  { k:"3:4",  zh:"竖 3:4",  mj:"--ar 3:4",  word:"vertical portrait framing, 3:4 aspect ratio", nl:"竖构图 3:4" },
+  { k:"2:3",  zh:"竖 2:3",  mj:"--ar 2:3",  word:"vertical portrait framing, 2:3 aspect ratio", nl:"竖构图 2:3" },
+  { k:"1:1",  zh:"方 1:1",  mj:"--ar 1:1",  word:"square composition, 1:1 aspect ratio", nl:"方形构图 1:1" },
+  { k:"4:3",  zh:"横 4:3",  mj:"--ar 4:3",  word:"horizontal composition, 4:3 aspect ratio", nl:"横构图 4:3" },
+  { k:"16:9", zh:"横 16:9", mj:"--ar 16:9", word:"wide cinematic composition, 16:9 aspect ratio", nl:"宽幅构图 16:9" },
+  { k:"auto", zh:"不指定",  mj:"",          word:"", nl:"" }
+];
+function ratioOf(k) {
+  return RATIOS.filter(function (r) { return r.k === k; })[0] || RATIOS[0];
+}
+
+/* 把一句中文切成可匹配的片段，分两级：
+     exact —— 原文里的自然片段（按标点切出来的词与短句）
+     loose —— 长片段再切出来的二字滑窗
+   为什么要分两级而不是混在一起：二字滑窗会产生「红机」「械义」这类
+   跨越词界的碎片，它们经常碰巧命中某条数据 ——
+   于是「紫红机械义肢独角兽」这种库里根本没有的东西也能配出推荐，
+   而界面上只看得到「命中 3 处」，看不出这 3 处是碎片碰中的。
+   所以先用自然片段匹配，一段都没命中才降级到滑窗，并且**降级要标明**。 */
+function splitTerms(text) {
+  var raw = String(text || "")
+    .split(/[\s，,。；;、：:！!？?（）()「」【】《》\n\r\/·]+/)
+    .filter(function (t) { return t.length >= 2; });
+  var exact = raw.slice();
+  var loose = [];
+  raw.forEach(function (t) {
+    if (t.length > 4) {
+      for (var i = 0; i + 2 <= t.length && i < 14; i++) loose.push(t.substr(i, 2));
+    }
+  });
+  function uniq(a) { return a.filter(function (t, i, x) { return x.indexOf(t) === i; }); }
+  return { exact: uniq(exact), loose: uniq(loose) };
+}
+function hitsOf(hay, terms) {
+  var hit = [];
+  terms.forEach(function (t) { if (hay.indexOf(t) >= 0) hit.push(t); });
+  /* 去重：同一个词在多面里重复命中不该重复计分 */
+  return hit.filter(function (t, i, a) { return a.indexOf(t) === i; });
+}
+function plateHay(p) {
+  var a = [p.zh || "", p.en || "", p.cat || "", p.read || "", p.light || "", p.camera || ""];
+  FACES.forEach(function (f) {
+    var v = (p.faces || {})[f.k];
+    if (v) a.push(v.c || v);
+  });
+  return a.join(" ").toLowerCase();
+}
+function themeHay(t) {
+  var a = [t.zh || "", t.cat || "", t.text || ""];
+  FACES.forEach(function (f) {
+    var v = (t.faces || {})[f.k];
+    if (v) a.push(v.c || v);
+  });
+  return a.join(" ").toLowerCase();
+}
+function autoMatch(text) {
+  var sp = splitTerms(text);
+  if (!sp.exact.length) {
+    return { ok: false, why: "没读到可匹配的片段（至少写两个字的中文）" };
+  }
+  function run(terms) {
+    var ps = (DB.ALBUM || []).map(function (p) {
+      var h = hitsOf(plateHay(p), terms);
+      return { p: p, n: h.length, hit: h.slice(0, 4) };
+    }).filter(function (x) { return x.n > 0; })
+      .sort(function (a, b) { return b.n - a.n; }).slice(0, 3);
+    var ts = (DB.THEMES || []).map(function (t) {
+      var h = hitsOf(themeHay(t), terms);
+      return { t: t, n: h.length, hit: h.slice(0, 4) };
+    }).filter(function (x) { return x.n > 0; })
+      .sort(function (a, b) { return b.n - a.n; }).slice(0, 3);
+    return { plates: ps, themes: ts, terms: terms };
+  }
+  var a = run(sp.exact.map(lower1));
+  if (a.plates.length || a.themes.length) {
+    return { ok: true, level: "exact", terms: sp.exact,
+             plates: a.plates, themes: a.themes };
+  }
+  var b = run(sp.exact.concat(sp.loose).map(lower1));
+  return { ok: true, level: "loose", terms: sp.exact.concat(sp.loose),
+           plates: b.plates, themes: b.themes,
+           empty: (!b.plates.length && !b.themes.length) };
+}
+function lower1(s) { return String(s).toLowerCase(); }
+
+function renderCustom() {
+  el("mainH").innerHTML = "自定义出图<span class=\"hint\">填一句需求 → 自动配编号与主题 → 出一条可直接用的提示词</span>";
+  var f = '<div class="cgrid">';
+
+  /* ---- 左：需求与自动配 ---- */
+  var L = '<div class="panel"><h2>① 说一句你要什么</h2><div class="body">'
+    /* 输入框给足高度：一句话需求常常写到三五行，
+       四行的小框写完就得在框里上下滚，边写边看不全自己写了什么。
+       框小还会给人一种暗示——「这里只能写一句」，
+       于是人把需求压成半句，自动配的命中率跟着掉。 */
+    + '<textarea id="ctext" class="cneed" rows="7" placeholder="'
+    + "例：雨夜天台，短发，冷调，情绪克制，像电影截图。\n"
+    + "多写几句更准 —— 命中的关键词越多，配出来的编号与主题越贴。" + '">' + esc(S.cText) + "</textarea>"
+    + '<div class="row" style="margin-top:8px">'
+    + '<button class="btn p" data-act="cauto">自动配</button>'
+    + '<button class="btn" data-act="cclear">清空</button>'
+    + '<span style="font-size:11px;color:var(--ink3)">从左到右配：编号管这个人是谁，主题管画什么</span>'
+    + "</div>";
+
+  if (S.cAuto) {
+    var A = S.cAuto;
+    if (!A.ok) {
+      L += '<div class="note warn" style="margin-top:8px">' + esc(A.why) + "</div>";
+    } else {
+      L += '<div class="hit" style="margin-top:9px"><b>读到 ' + A.terms.length + " 个片段　</b>"
+        + esc(A.terms.slice(0, 12).join(" / ")) + "</div>";
+      /* 降级到滑窗匹配必须自报：命中数看着有，但可能是碎片碰中的。
+         不标的话，用户会把「命中 3 处」当成「这条真的对得上」。 */
+      if (A.level === "loose" && !A.empty) {
+        L += '<div class="note warn" style="margin-top:6px">'
+          + "<b>整句没直接命中 —— 已降级到二字滑窗的宽松匹配。</b>"
+          + "滑窗会切出跨越词界的碎片（如「红机」「械义」），"
+          + "下面的候选是靠碎片碰中的，命中数不代表真的对得上，请对照命中词自己判断。</div>";
+      }
+      if (!A.plates.length && !A.themes.length) {
+        L += '<div class="note warn" style="margin-top:6px"><b>一个都没命中。</b>'
+          + "不会偷偷给你随机结果 —— 请在下面手选编号与主题，"
+          + "或者换几个更常见的词（如「冷调」「古典」「夜」）。</div>";
+      }
+      if (A.plates.length) {
+        L += '<div class="fgroup" style="margin-top:9px"><b>编号候选</b><span class="ln"></span></div>';
+        L += A.plates.map(function (x) {
+          return '<div class="row" style="margin-top:4px">'
+            + '<button class="pick' + (S.cNum === x.p.num ? " on" : "") + '" data-act="cnum" data-num="' + x.p.num + '">'
+            + '<span class="tw" style="width:7px;height:14px;border-radius:2px;background:' + chipTone(x.p) + '"></span>'
+            + '<span class="n">' + esc(x.p.num) + '</span><span class="z">' + esc(x.p.zh) + "</span></button>"
+            + '<span style="font:10.5px var(--mono);color:var(--accent)">' + x.n + " 处命中</span>"
+            + '<span style="font-size:10.5px;color:var(--ink3)">' + esc(x.hit.join(" / ")) + "</span></div>";
+        }).join("");
+      }
+      if (A.themes.length) {
+        L += '<div class="fgroup" style="margin-top:9px"><b>主题候选</b><span class="ln"></span></div>';
+        L += A.themes.map(function (x) {
+          return '<div class="row" style="margin-top:4px">'
+            + '<button class="pick' + (S.cTheme === x.t.num ? " on" : "") + '" data-act="ctheme" data-num="' + x.t.num + '">'
+            + '<span class="n">' + esc(x.t.num) + '</span><span class="z">' + esc(x.t.zh) + "</span></button>"
+            + '<span style="font:10.5px var(--mono);color:var(--accent)">' + x.n + " 处命中</span>"
+            + '<span style="font-size:10.5px;color:var(--ink3)">' + esc(x.hit.join(" / ")) + "</span></div>";
+        }).join("");
+      }
+    }
+  }
+
+  /* 手选：编号网格（按段分组，多行多列）+ 主题全量。
+     自动配只是建议，最终决定权在这里。 */
+  /* 手选编号与精品出图完全同一套（platePicker），
+     理由同组图：一个编号在所有页里的位置必须一致。 */
+  L += '<div class="fgroup" style="margin-top:11px"><b>手选编号</b><span class="ln"></span>'
+    + '<span style="font-size:10px">' + (DB.ALBUM || []).length + " 条</span></div>"
+    /* 当前选中常显：与精品出图、组图两页同一套（选完收起分组，
+       收起的是列表，选中本身仍在原地看得见）。
+       三页不一致的话，人在这一页选完会以为自己没选上。 */
+    + (PLATE[S.cNum]
+        ? '<div class="strip" style="padding:0 0 6px">'
+          + plateCard(PLATE[S.cNum], "cnum", S.cNum, "max-width:190px") + "</div>"
+        : "")
+    + '<div class="pgridbox">' + platePicker("cnum", S.cNum) + "</div>";
+
+  L += '<div class="fgroup" style="margin-top:9px"><b>手选主题</b><span class="ln"></span>'
+    + '<span style="font-size:10px">' + (DB.THEMES || []).length + " 个</span></div>"
+    + '<div class="tgridbox">' + themeGridHTML("ctheme", S.cTheme, null) + "</div>";
+  L += "</div></div>";
+
+  /* ---- 右：门类 / 模式 / 画幅 / 出词 ---- */
+  var R = '<div class="panel"><h2>② 定参数，出词</h2><div class="body">'
+    + '<div class="fgroup" style="margin-top:2px"><b>画法（门类）</b><span class="ln"></span></div>'
+    + '<div class="modes">' + (DB.MEDIUMS || []).map(function (m) {
+        return '<button class="mbtn' + (S.cMedium === m.k ? " on" : "") + '" data-act="cmedium" data-v="'
+          + m.k + '" title="' + esc(m.desc + (m.caution ? "\n\n注意：" + m.caution : "")) + '">'
+          + "<b>" + esc(m.zh) + "</b><i>" + esc(m.desc || "") + "</i></button>";
+      }).join("") + "</div>"
+    + '<div class="fgroup" style="margin-top:9px"><b>呈现模式</b><span class="ln"></span></div>'
+    + '<div class="modes">' + (DB.MODES || []).map(function (m) {
+        return '<button class="mbtn' + (S.cMode === m.k ? " on" : "") + '" data-act="cmode" data-v="' + m.k + '">'
+          + "<b>" + esc(m.zh) + "</b><i>" + esc(m.desc || "") + "</i></button>";
+      }).join("") + "</div>"
+    + '<div class="fgroup" style="margin-top:9px"><b>画幅</b><span class="ln"></span>'
+    + '<span style="font-size:10px">追加在词面末尾</span></div>'
+    + '<div class="modes">' + RATIOS.map(function (r) {
+        return '<button class="mini' + (S.cRatio === r.k ? " p" : "") + '" data-act="cratio" data-v="' + r.k
+          + '" style="padding:4px 9px;font-size:11.5px">' + esc(r.zh) + "</button>";
+      }).join("") + "</div>"
+    + '<label class="toggle' + (S.cAppend ? " on" : "") + '" data-act="cappe" style="margin-top:8px">'
+    + '<input type="checkbox"' + (S.cAppend ? " checked" : "") + ">把我的原话追加到词尾</label>"
+    + customOutHTML()
+    + "</div></div>";
+
+  f += L + R + "</div>";
+  el("main").innerHTML = f;
+}
+
+/* 自定义出图的出词：compose 的产物 + 两样追加物。
+   两样追加物都必须在界面上点名 ——
+   混进词面又不说，用户会以为它们是配方的一部分，
+   换模型时对着这两样调半天。 */
+function customBody(r) {
+  var tags = (r.tags && r.tags[S.plat]) || [];
+  var body = (S.plat === "nl") ? r.nl : tags.join("，");
+  var add = [];
+  if (S.cAppend && S.cText.trim()) add.push(S.cText.trim());
+  var ra = ratioOf(S.cRatio);
+  if (ra.k !== "auto") {
+    if (S.plat === "mj") add.push(ra.mj);
+    else if (S.plat === "nl" || S.plat === "gpt") add.push("（" + ra.nl + "）");
+    else add.push(ra.word);
+  }
+  if (!add.length) return body;
+  return body + (S.plat === "mj" ? " " : "，") + add.join(S.plat === "mj" ? " " : "，");
+}
+function customOutHTML() {
+  if (!S.cNum) {
+    return '<div class="out"><div class="ob">先选一个编号：编号决定「这个人是谁」，'
+      + "它是自定义出图的地基。主题可以后面再换，编号换了就是另一个人。</div></div>";
+  }
+  var r = KIT.compose(DB, S.cNum, { themeId: S.cTheme, mode: S.cMode, medium: S.cMedium });
+  if (!r.ok) {
+    return '<div class="out"><div class="ob">' + esc(r.why || "出词失败") + "</div></div>";
+  }
+  var body = customBody(r);
+  var meta = { sd:"Stable Diffusion", mj:"Midjourney", flux:"FLUX", nl:"自然语言", gpt:"GPT 图像" };
+  var tabs = Object.keys(KIT.PLATFORMS || {}).map(function (k) {
+    return '<button class="tab' + (S.plat === k ? " on" : "") + '" data-act="plat" data-v="' + k + '">'
+      + esc(k.toUpperCase()) + "</button>";
+  }).join("");
+  var ra = ratioOf(S.cRatio);
+
+  var h = '<div class="out" style="margin-top:10px">'
+    + '<div class="oh"><span class="t">' + esc(meta[S.plat] || S.plat) + "</span>"
+    + '<span class="badge">' + esc(r.plate.num) + "</span>"
+    + (r.theme ? '<span class="badge" style="color:#d9b988;border-color:var(--content-line);background:var(--content-soft)">'
+        + esc(S.cTheme) + "</span>" : '<span class="badge">未选主题</span>')
+    + '<span class="badge">' + esc(r.mode.zh) + "</span>"
+    + '<span class="sp"></span>' + tierBadge(r.plate.rights) + "</div>"
+    + '<div class="ob" id="promptBody">' + esc(body || "（没有词）") + "</div>"
+    + '<div class="of"><div class="tabs">' + tabs + "</div>"
+    + '<span style="flex:1"></span>'
+    + '<button class="btn p" data-act="copy" data-cp="' + esc(body || "") + '">复制</button>'
+    + '<button class="btn k" data-act="cbench">去精品出图</button></div>';
+
+  /* 追加物清单：说清楚哪几段不是配方产物 */
+  var extra = [];
+  if (S.cAppend && S.cText.trim()) extra.push("我的原话（" + S.cText.trim().length + " 字，追加在词尾，不参与裁决）");
+  if (ra.k !== "auto") extra.push("画幅 " + ra.zh + "（追加在词尾；各模型对比例词的服从度不同）");
+  h += '<div class="chips">' + (extra.length
+      ? extra.map(function (x) {
+          return '<span style="color:#d9b988;border-color:var(--content-line);background:var(--content-soft)">'
+            + esc(x) + "</span>";
+        }).join("")
+      : '<span style="color:var(--ink3)">无追加物：这一条就是配方原样</span>') + "</div>";
+
+  if ((r.neg || []).length) {
+    h += '<div class="chips"><span style="color:var(--rk-lookalike);border-color:#5c452a;background:#2a2118">'
+      + "负面词 " + r.neg.length + " 条</span>"
+      + r.neg.map(function (x) { return "<span>" + esc(x) + "</span>"; }).join("")
+      /* 自定义页的模式是 cMode 不是 S.mode，所以这里必须用这条自己的 neg，
+         不能调 gcopyNeg（那个按 S.num/S.theme/S.mode 现算，给的是别的组合）。 */
+      + '<button class="btn neg" data-act="copy" data-cp="' + esc(negStrOf(r.neg))
+      + '" title="SD 填 Negative 框，MJ 用 --no（本按钮已按平台带前缀）">复制负面词</button>'
+      + "</div>";
+  }
+  h += "</div>";
+
+  h += '<div class="warns">';
+  (r.warns || []).forEach(function (w) { h += '<div class="w">' + esc(w) + "</div>"; });
+  if (r.rights) {
+    h += '<div class="w ok"><b>授权 ' + esc(r.rights.worst || "—") + "　</b>" + esc(r.rights.can || "")
+      + (r.rights.disclaimer ? "<br>" + esc(r.rights.disclaimer) : "") + "</div>";
+  }
+  (r.missing || []).forEach(function (m) {
+    h += '<div class="w"><b>缺 ' + esc(m.zh) + "　</b>" + esc(m.reason || "") + "</div>";
+  });
+  if (!(r.warns || []).length && !(r.missing || []).length && !r.rights) {
+    h += '<div class="w ok">无警告</div>';
+  }
+  h += "</div>";
+  h += '<div class="note" style="margin-top:8px">' + esc(r.notice || "") + "</div>";
+  return h;
+}
+
+/* ============================================================
+ * 七 全部词条
+ *
+ * 为什么单独开一页：抽卡与工作台都在「组合」，
+ * 而使用者的另一半需求是「我只想看看库里到底有什么」。
+ * 藏在组合界面后面的词条等于不存在。
+ * ============================================================ */
+/* ============================================================
+ * 八 体检
+ *
+ * 这一页的四条检查**每次打开现跑一遍**，不是写死的结论。
+ * 写死的「已通过」在库改动那天就开始骗人；
+ * 而体检页的全部价值就是「现在这一刻还成不成立」。
+ * ============================================================ */
+function runChecks() {
+  var out = [];
+  var A = DB.ALBUM || [];
+
+  /* ① 身份层填充。
+     为什么只查身份层而不是「八面」：scene 面**本来就该由主题给**，
+     编号不填 scene 是设计如此（填了反而会被主题覆盖，白填）。
+     拿「八面齐全」当标准，48 条会全军覆没 ——
+     而那是检查写错了，不是数据有缺口。
+     这类「判据本身就错」的失败最危险：它报红，看起来很负责，
+     但照着它去补数据，补出来的是一堆马上会被覆盖的死字段。 */
+  var gaps = [];
+  A.forEach(function (p) {
+    var miss = (DB.IDENTITY_FACES || []).filter(function (k) {
+      var v = (p.faces || {})[k];
+      return !(v && (v.c || v));
+    });
+    if (miss.length) gaps.push(p.num + " 缺 " + miss.join("、"));
+  });
+  var dressFill = A.filter(function (p) {
+    var v = (p.faces || {}).dress;
+    return !!(v && (v.c || v));
+  }).length;
+  out.push({
+    zh: "身份层填充", ok: gaps.length === 0,
+    v: (A.length - gaps.length) + " / " + A.length + " 条编号身份层五面齐全",
+    d: gaps.length ? "缺口：" + gaps.slice(0, 6).join("；")
+      : "身份层五面全部填满（scene 面由主题给，不在这里计缺口；"
+        + dressFill + "/" + A.length + " 条给了默认妆造，主题覆盖时不用它）"
+  });
+
+  /* ② 身份层恒定：真换主题比对，不是读声明 */
+  var bad = [];
+  (DB.THEMES || []).slice(0, 8).forEach(function (t) {
+    A.slice(0, 6).forEach(function (p) {
+      var a = KIT.compose(DB, p.num, { themeId: t.num, mode: "plain" });
+      var b = KIT.compose(DB, p.num, { themeId: null, mode: "plain" });
+      if (!a.ok || !b.ok) { bad.push(p.num + " compose 失败"); return; }
+      (DB.IDENTITY_FACES || []).forEach(function (k) {
+        if (((a.faces[k] || {}).c || null) !== ((b.faces[k] || {}).c || null)) {
+          bad.push(p.num + " 的" + k + "被主题改了");
+        }
+      });
+    });
+  });
+  out.push({
+    zh: "身份层恒定", ok: bad.length === 0,
+    v: (DB.THEMES || []).slice(0, 8).length + " 主题 × 6 编号现跑比对",
+    d: bad.length ? bad.slice(0, 5).join("；") : "换任何主题，身份层五面逐字节不变"
+  });
+
+  /* ③ 姓名不泄漏：把每条 namedRef 拿到词面里去搜 */
+  var leak = [];
+  A.forEach(function (p) {
+    if (!p.namedRef) return;
+    var r = KIT.compose(DB, p.num, { themeId: (DB.THEMES[0] || {}).num, mode: "plain" });
+    var s = ((r.tags && r.tags.sd) || []).join("，") + " " + (r.nl || "");
+    if (s.indexOf(p.namedRef) >= 0) leak.push(p.num);
+  });
+  out.push({
+    zh: "姓名不进提示词", ok: leak.length === 0,
+    v: A.filter(function (p) { return !!p.namedRef; }).length + " 条带 namedRef",
+    d: leak.length ? "泄漏：" + leak.join("、") : "带 namedRef 的条目，真名均未出现在词面里"
+  });
+
+  /* ④ 抽卡护栏：真抽 20 组，看挡掉了多少 */
+  var blocked = 0, tries = 20;
+  for (var i = 0; i < tries; i++) {
+    var r2 = GACHA.roll(DB, { seed: 9000 + i });
+    blocked += (r2 && r2.semanticBlocked) || 0;
+  }
+  var pool = GACHA.pool(DB, {});
+  out.push({
+    zh: "抽卡护栏在工作", ok: blocked > 0,
+    v: "随机 " + tries + " 组，挡掉 " + blocked + " 个候选",
+    d: blocked > 0 ? "组合空间 " + pool.space + "，实际可抽的受 CAT_CLASH 约束"
+                   : "一条都没挡 —— 护栏可能空转，需要查 CAT_CLASH 是否覆盖到实际类目"
+  });
+
+  /* ⑤ 复制链路：画廊每张卡的按钮**实际会复制出什么**，这里逐条现跑一遍。
+     按钮是一层、引擎是另一层。按钮写对了，引擎对某条编号返回空词或半截词，
+     在界面上的表现只是「点了没反应」—— 而这种失败不会报错，
+     只会让人以为这个编号就是这样。只能靠逐条跑才看得见。 */
+  var cbad = [], cneg0 = [], cscene = [];
+  A.forEach(function (p) {
+    var r = KIT.compose(DB, p.num, { themeId: S.theme, mode: S.mode, medium: S.medium });
+    if (!r.ok) { cbad.push(p.num + " 配不出来"); return; }
+    var s = ((r.tags && r.tags[S.plat]) || []).join("，");
+    if (!s) { cbad.push(p.num + " 复制出空串"); return; }
+    if (s.length < 60) { cbad.push(p.num + " 只有 " + s.length + " 字"); return; }
+    var bone = String(((p.faces || {}).bone || {}).c || "");
+    if (bone && s.indexOf(bone.slice(0, 6)) < 0) cbad.push(p.num + " 身份层没进词");
+    if (!(r.faces && r.faces.scene && r.faces.scene.c)) cscene.push(p.num);
+    if (!(r.neg || []).length) cneg0.push(p.num);
+  });
+  out.push({
+    zh: "画廊复制链路", ok: cbad.length === 0 && cneg0.length === 0 && cscene.length === 0,
+    v: A.length + " 条 × 当前主题/模式/平台（" + (S.theme || "无") + " · " + S.mode
+       + " · " + S.plat.toUpperCase() + "）逐条现跑",
+    d: (cbad.length ? "复制异常：" + cbad.slice(0, 5).join("；") + "。" : "48 条都能复制出完整词面。")
+      + (cscene.length ? " 缺场景面：" + cscene.slice(0, 5).join("、") + "。" : "")
+      + (cneg0.length ? " 负面词为空：" + cneg0.slice(0, 5).join("、") : " 负面词均非空")
+  });
+
+  return out;
+}
+function renderCheck() {
+  el("mainH").innerHTML = "体检<span class=\"hint\">五条检查每次打开现跑一遍，不是写死的结论</span>";
+  var A = DB.ALBUM || [];
+  var f = "";
+
+  f += '<div class="tkbox"><div class="tl">自校验 · 现跑</div>'
+    + runChecks().map(function (c) {
+        return '<div class="note' + (c.ok ? "" : " warn") + '" style="margin-top:6px">'
+          + "<b>" + (c.ok ? "✓ " : "✗ ") + esc(c.zh) + "　</b>"
+          + '<span style="font:10.5px var(--mono);color:var(--ink3)">' + esc(c.v) + "</span><br>"
+          + esc(c.d) + "</div>";
+      }).join("") + "</div>";
+
+  /* 覆盖矩阵：类目 × 授权档 */
+  var cats = sortedCats(A);
+  var tiers = DB.RIGHT_TIERS || [];
+  var mx = '<table class="matrix"><tr><th>类目</th>'
+    + tiers.map(function (t) { return "<th>" + esc(t.k + " " + t.zh) + "</th>"; }).join("")
+    + "<th>合计</th></tr>";
+  cats.forEach(function (c) {
+    var sub = A.filter(function (p) { return p.cat === c; });
+    mx += "<tr><td>" + esc(c) + "</td>"
+      + tiers.map(function (t) {
+          var n = sub.filter(function (p) { return p.rights === t.k; }).length;
+          return '<td class="' + (n ? "y" : "n") + '">' + n + "</td>";
+        }).join("")
+      + "<td><b>" + sub.length + "</b></td></tr>";
+  });
+  mx += "</table>";
+  /* 地域覆盖。广度是这个库的主干诉求（用户 2026-10-11 定调：先广度后深度），
+     所以覆盖必须现算现报 —— 每圈配了 4 条就是 4 条，
+     报「4 / 目标 8」而不是等补满才显示。不报缺口的覆盖表会让人以为已经齐了。 */
+  var regMap = {};
+  (DB.ALBUM || []).forEach(function (p) {
+    if (!p.region) return;
+    if (!regMap[p.region]) regMap[p.region] = { n: 0, cs: [] };
+    regMap[p.region].n++;
+    regMap[p.region].cs.push(p.culture || "—");
+  });
+  var regKeys = Object.keys(regMap);
+  var regRows = regKeys.map(function (r) {
+    return '<tr><td>' + esc(r) + "</td><td><b>" + regMap[r].n + "</b> / 8</td><td>"
+      + esc(regMap[r].cs.join("、")) + "</td></tr>";
+  }).join("");
+  var protoN = (DB.ALBUM || []).length - regKeys.reduce(function (s, r) { return s + regMap[r].n; }, 0);
+  f += '<div class="secthead"><h3>地域覆盖 · 广度主干</h3><span class="n">' + regKeys.length
+    + ' 圈</span><span class="why">先广度后深度 · 每圈目标 8 条</span></div>'
+    + '<table class="mtx"><tr><th>文化圈</th><th>已配 / 目标</th><th>文化</th></tr>' + regRows + "</table>"
+    + '<div class="note warn">另有 <b>' + protoN
+    + " 条原型段</b>（001–048）：不锚定任何地域的抽象审美类型，"
+    + "骨相以东亚审美为基。它们与全球段是并行的两种用法 —— "
+    + "要「不限地域的类型」用原型段，要「具体文化圈的人」用全球段。"
+    + "每圈配额未满 8 条前，这里会一直报缺口。</div>";
+
+  f += '<div class="secthead"><h3>覆盖矩阵 · 类目 × 授权档</h3><span class="n">' + cats.length
+    + " 类 × " + tiers.length + ' 档</span><span class="why">现算</span></div>' + mx;
+
+  /* 主题 × 类目覆盖：主题能不能配到所有类目 */
+  var tg = themeGroups();
+  /* 配图与实测条数：从数据里的 test.pic 数出来，不写死。
+     离线页面读不到文件系统，所以「有几张图」的唯一依据就是
+     test.pic 这个声明 —— 而声明可以撒谎（文件被删了）。
+     tools/check_album.js 里有对拍断言，声明与 examples/ 实况不符就报错。 */
+  var withPic = A.filter(function (p) { return p.test && p.test.pic; });
+  var picCount = withPic.length;
+  var tested = A.filter(function (p) { return p.status === "tested" || (p.test && p.test.model); });
+  var testedN = tested.length;
+  var testedList = tested.map(function (p) { return p.num; }).join("、");
+  f += '<div class="secthead"><h3>主题覆盖</h3><span class="n">' + (DB.THEMES || []).length
+    + " 个</span><span class=\"why\">按类目分组</span></div>"
+    + '<div class="lxgrid">' + tg.map(function (g) {
+        return '<div class="lxcard"><div class="lh"><b>' + esc(g.cat) + "</b>"
+          + '<span class="n">' + g.list.length + " 个</span></div>"
+          + '<div class="lt">' + esc(g.list.map(function (t) { return t.zh; }).join("、")) + "</div></div>";
+      }).join("") + "</div>";
+
+  /* 已知缺口：必须写出来，否则「48 个编号」听起来像是收齐了 */
+  var noScene = (DB.THEMES || []).filter(function (t) {
+    return !(t.faces && t.faces.scene);
+  }).length;
+  f += '<div class="secthead"><h3>已知缺口</h3><span class="n">不掩饰</span>'
+    + '<span class="why">写出来的缺口才是可以补的</span></div>'
+    + '<div class="note warn"><b>① 配图覆盖率。</b>48 条编号只有 '
+    + picCount + " 条放了 <code>examples/&lt;编号&gt;.png</code>，其余 "
+    + (A.length - picCount) + " 条显示的是按 cat + skin 现推的色卡，不是配色数据。"
+    + "「这套配方出出来到底长什么样」目前多数还得自己跑一遍；"
+    + "清单与命名规矩见 <code>gallery-naming.md</code>。</div>"
+    + '<div class="note warn"><b>② 零实测。</b>' + (A.length - testedN) + " / "
+    + A.length + " 条编号没有在具体模型上跑过（"
+    + (testedN ? "已跑过的是 " + testedList + "，" : "") + "其余全部是 written 档）。"
+    + "换模型后权重语法与出图倾向都会变 —— 写得通不等于出得来。"
+    + '<br>已实测的那条同时暴露一件事：<b>负面词不是承诺</b>，'
+    + "只在支持 negative 的模型上成立（见 <code>gallery-naming.md</code>）。</div>"
+    + '<div class="note warn"><b>③ 主题场景面 ' + ((DB.THEMES || []).length - noScene) + " / "
+    + (DB.THEMES || []).length + '。</b>没有场景面的主题 ' + noScene + " 个，"
+    + "配上去 scene 面留空并会在出词时报出来（不回退到编号，静默回退才是事故）。</div>"
+    + '<div class="note warn"><b>④ 语义护栏只覆盖 ' + Object.keys(GACHA.CAT_CLASH || {}).length
+    + " 个类目。</b>其余类目之间没有冲突判定 —— 抽卡可能给出观感奇怪但规则允许的组合。</div>"
+    /* 画幅这条必须写出来：MJ/SD 用户拿到词的第一件事是加 --ar / 尺寸，
+       而本库除自定义出图页外都不产画幅参数。不说，用户会以为「库里应该有」
+       然后在别的地方找半天。 */
+    + '<div class="note warn"><b>⑤ 画幅参数只有自定义出图页给。</b>'
+    + "精品出图 / 画廊 / 抽卡的词面里不含 --ar 或尺寸参数 —— "
+    + "画幅是出图时按平台自己加的（MJ 加 --ar，SD 设宽高），本库不替你决定。</div>";
+
+  /* 冲突裁决 */
+  f += '<div class="secthead"><h3>冲突裁决表</h3><span class="n">CAT_CLASH</span>'
+    + '<span class="why">只挡确实荒谬的组合</span></div>'
+    + Object.keys(GACHA.CAT_CLASH || {}).map(function (k) {
+        return '<div class="note warn" style="margin-top:5px"><b>' + esc(k) + "</b> 配不进 "
+          + esc(GACHA.CAT_CLASH[k].join("、")) + "</div>";
+      }).join("");
+
+  /* 授权与合规收尾。原独立页并入这里 —— 规矩和体检同属「治理」，
+     拆成两页时用户要跳两次才能看全「这个库的规矩」。 */
+  f += '<div class="secthead"><h3>授权与姓名策略</h3><span class="n">RIGHTS</span>'
+    + '<span class="why">分级是工程判断，不是法务结论</span></div>'
+    + rightsBody();
+
+  el("main").innerHTML = f;
+}
+
+/* ============================================================
+ * 渲染与事件
+ * ============================================================ */
+function render() {
+  renderNav();
+  if (S.view === "gallery")  renderGallery();
+  if (S.view === "gacha")    renderGacha();
+  if (S.view === "custom")   renderCustom();
+  if (S.view === "bench")    renderBench();
+  if (S.view === "series")   renderSeries();
+  if (S.view === "rights")   renderRights();
+  if (S.view === "check")    renderCheck();
+  renderDetail();
+}
+
+/* 切视图的唯一入口。
+   三个函数一起调：只调 render 的话筛选条会停在上一屏的 chip 上，
+   而那一屏本来没有筛选条，看起来像「筛选没生效」。 */
+function go(v) {
+  S.view = v;
+  render();
+}
+
+/* ---------- 组图 ----------
+   勾了主题就按勾的出（KIT.series），没勾就按类目全量 sweep（GACHA.sweep）。
+   两条路都留着：勾选是「我已经想好了」，全量是「这一号能配什么我都想看看」。 */
+function doSweep() {
+  var picked = Object.keys(S.swPicked).filter(function (k) { return S.swPicked[k]; });
+  if (picked.length) {
+    S.swOut = KIT.series(DB, S.num, picked, { mode: S.mode, medium: S.medium });
+    S.swOut.why = "按勾选的 " + picked.length + " 个主题";
+  } else {
+    var cats = S.swCat === "全部" ? null : [S.swCat];
+    S.swOut = GACHA.sweep(DB, S.num, { mode: S.mode, medium: S.medium, cats: cats });
+    S.swOut.why = "按类目「" + S.swCat + "」全量 sweep";
+  }
+  render();
+  toast("组图 " + S.swOut.length + " 张");
+}
+
+/* ---------- 抽卡 ---------- */
+function doRoll() {
+  var opt = {
+    semanticOff: !S.gSemantic,
+    forceMode: S.gForce
+  };
+  if (S.gCat !== "全部") opt.cats = { plate: [S.gCat] };
+  if (S.gSeed !== "") {
+    var n = parseInt(S.gSeed, 10);
+    opt.seed = isNaN(n) ? S.gSeed : n;      /* 非数字也能当种子：mulberry 自己会 |0 */
+  }
+  S.gRolls = GACHA.rollMany(DB, S.gN, opt);
+  render();
+  if (S.gRolls.ok) toast("抽了 " + S.gRolls.total + " 组 · seed " + S.gRolls.baseSeed);
+  else toast("抽卡失败：" + (S.gRolls.why || "未知"));
+}
+
+/* ---------- 事件委托 ----------
+   一律走 data-act：卡片、chip、按钮全在 innerHTML 里重绘，
+   逐个绑 onclick 会在每次重绘后漏掉新生成的节点。
+   而漏绑的表现是「点了没反应」，不报错。 */
+document.addEventListener("click", function (ev) {
+  /* 点浮层外的遮罩 = 关闭。判据必须是「点中的正好是遮罩本身」：
+     用 closest 的话，点浮层里的任何东西都会命中祖先遮罩，
+     于是「点详情里的复制按钮」会变成「关掉浮层」。 */
+  if (ev.target && ev.target.id === "mask") { closeDetail(); return; }
+  /* 手动复制框同理：点空白处关闭，不逼人去够右上角那个小按钮。 */
+  if (ev.target && ev.target.id === "cmask") { closeCopyBox(); return; }
+  /* 配图浮层：点空白处关闭，同上。 */
+  if (ev.target && ev.target.id === "pmask") { closePic(); return; }
+
+  var t = ev.target.closest && ev.target.closest("[data-act]");
+  if (!t) return;
+  var a = t.getAttribute("data-act");
+  var v = t.getAttribute("data-v");
+  var n = t.getAttribute("data-num");
+
+  if (a === "view")  { go(v); return; }
+  if (a === "fcat")  { S.cat = v;  render(); return; }
+  if (a === "ftier") { S.tier = v; render(); return; }
+  if (a === "frk")   { S.rk = v;   render(); return; }
+  if (a === "fregion") { S.region = v; render(); return; }
+  if (a === "advaxis") { S.advAxis = v === "1"; render(); return; }
+  if (a === "morefilters") { S.moreFilters = v === "1"; render(); return; }
+  if (a === "copycfg") { S.copyCfg = v === "1"; render(); return; }
+
+  if (a === "pick") {
+    S.num = n;
+    /* 选中即打开详情浮层：点一张卡片的目的就是看它，
+       而「选中了但什么都没发生」是最难自查的一类没反应。 */
+    S.det = true;
+    render();
+    toast("已选 " + n + "：" + ((PLATE[n] || {}).zh || ""));
+    return;
+  }
+  if (a === "pnum") {
+    S.num = n; S.swOut = null; render();
+    /* 选完自动收起分组 —— 收起的是「列表」，当前选中仍在轴一顶部常显。
+       不收起的话，选完人还要手动滚回顶部看出词区。 */
+    document.querySelectorAll("details.bseg[open]").forEach(function (d) { d.open = false; });
+    return;
+  }
+  if (a === "tnum") { S.theme = n; render(); return; }
+  if (a === "mode") { S.mode = v; S.swOut = null; render(); return; }
+  if (a === "medium") { S.medium = v; S.swOut = null; render(); return; }
+  if (a === "plat") { S.plat = v; render(); return; }
+  if (a === "copy") { copyText(t.getAttribute("data-cp") || ""); return; }
+  /* 画廊卡片上的一键复制。现算而非读 data-cp：
+     主题/模式/平台在别处改了，卡片上的按钮必须跟着变。 */
+  if (a === "gcopy") {
+    var gp = PLATE[n] || null;
+    var gt = gcopyText(gp);
+    if (!gt) { toast("这个编号配不出来：" + n); return; }
+    /* 说明交给 copyText 统一说：成败判定在它那儿，
+       这里自己先报一句「已复制」，就会覆盖掉它后来的失败提示。 */
+    copyText(gt, gcopyNote(gp));
+    return;
+  }
+  if (a === "gneg") {
+    var np = PLATE[n] || null;
+    var ng = gcopyNeg(np);
+    if (!ng) { toast("这一组没有负面词"); return; }
+    copyText(ng, "负面词 " + ng.replace(/^--no /, "").split("，").length
+      + " 条 —— SD 填 Negative 框，MJ 用 --no");
+    return;
+  }
+  /* 抽卡某一组的负面词：必须取那一组自己的 result，
+     不能拿编号去现算（那算的是全局主题/模式，跟这一组抽到的不一样）。 */
+  if (a === "rneg") {
+    var ri = parseInt(t.getAttribute("data-i"), 10);
+    var rr = (S.gRolls && S.gRolls.rolls && S.gRolls.rolls[ri]) || null;
+    var rn = negStrOf((rr && rr.result && rr.result.neg) || []);
+    if (!rn) { toast("这一组没有负面词"); return; }
+    copyText(rn, "第 " + (ri + 1) + " 组的负面词 "
+      + rn.replace(/^--no /, "").split("，").length + " 条");
+    return;
+  }
+
+  if (a === "gview") { S.gview = v; render(); return; }
+  if (a === "gpiconly") { S.picOnly = !S.picOnly; render(); return; }
+  if (a === "swcat")  { S.swCat = v; render(); return; }
+  if (a === "swpick") { S.swPicked[n] = !S.swPicked[n]; render(); return; }
+  if (a === "swall") {
+    (DB.THEMES || []).forEach(function (th) {
+      if (S.swCat === "全部" || th.cat === S.swCat) S.swPicked[th.num] = true;
+    });
+    render(); return;
+  }
+  if (a === "swnone") {
+    /* 只清当前类目下的勾选，不动别的类目。
+       一把清空会让「我只想重选都市日常」变成「全部重选」，
+       而后者在 40 个主题的规模下几乎不可逆。 */
+    Object.keys(S.swPicked).forEach(function (k) {
+      var th = themeOfNum(k);
+      if (S.swPicked[k] && th && (S.swCat === "全部" || th.cat === S.swCat)) {
+        S.swPicked[k] = false;
+      }
+    });
+    render(); return;
+  }
+  if (a === "sweep") { doSweep(); return; }
+
+  if (a === "tsem")   { S.gSemantic = !S.gSemantic; render(); return; }
+  if (a === "tforce") { S.gForce = !S.gForce; render(); return; }
+  if (a === "gcat")   { S.gCat = v; render(); return; }
+  if (a === "grandom"){
+    S.gSeed = String(Math.floor(Math.random() * 1e9));
+    render(); return;
+  }
+  if (a === "roll")   { doRoll(); return; }
+  if (a === "use") {
+    S.num = t.getAttribute("data-num");
+    var thId = t.getAttribute("data-theme");
+    if (thId) S.theme = thId;
+    S.mode = t.getAttribute("data-mode") || "plain";
+    S.det = false;
+    go("bench");
+    toast("已送进工作台");
+    return;
+  }
+
+  /* ---- 详情浮层 ---- */
+  if (a === "detclose") { closeDetail(); return; }
+  if (a === "pzclose") { closePic(); return; }
+  if (a === "pzbench") {
+    S.num = t.getAttribute("data-num") || S.num;
+    closePic(); closeDetail();
+    go("bench");
+    return;
+  }
+  /* 点图看原图。与「点卡片看详情」分成两个动作：
+     两个意图塞进同一个手势的结果是，每次想看详情都被弹到大图上。 */
+  if (a === "zoompic") {
+    openPic(t.getAttribute("data-num"));
+    return;
+  }
+  if (a === "cclose") { closeCopyBox(); return; }
+  if (a === "csel") {
+    var ct = el("cmText");
+    if (ct) { try { ct.focus(); ct.select(); } catch (e) {} }
+    return;
+  }
+  if (a === "detbench") { S.det = false; go("bench"); return; }
+
+  /* ---- 抽卡：锁轴 / 只换一个轴 / 一键复制全部 ---- */
+  if (a === "glock") {
+    var gi = parseInt(t.getAttribute("data-i"), 10);
+    var gx = t.getAttribute("data-axis");
+    if (!S.gLocks[gi]) S.gLocks[gi] = {};
+    S.gLocks[gi][gx] = !S.gLocks[gi][gx];
+    render();
+    return;
+  }
+  if (a === "greroll") {
+    rerollOne(parseInt(t.getAttribute("data-i"), 10), t.getAttribute("data-axis"));
+    return;
+  }
+  if (a === "copyall") { copyAllRolls(); return; }
+
+  /* ---- 自定义出图 ---- */
+  if (a === "cauto") {
+    S.cAuto = autoMatch(S.cText);
+    if (S.cAuto.ok) {
+      /* 自动配只填「还没选过」的那一格，不覆盖用户已经手选的。
+         覆盖了的话，用户手选完再点自动配，选择就被悄悄改掉了。 */
+      if (S.cAuto.plates.length && !S.cNum) S.cNum = S.cAuto.plates[0].p.num;
+      if (S.cAuto.themes.length && !S.cTheme) S.cTheme = S.cAuto.themes[0].t.num;
+    }
+    render();
+    toast(S.cAuto.ok ? "配好了 —— 候选与命中词在左边" : (S.cAuto.why || "没读到可匹配的词"));
+    return;
+  }
+  if (a === "cclear") { S.cText = ""; S.cAuto = null; render(); return; }
+  /* cnum 与 pnum 同一套行为：选完收起分组，选中本身留在常显位。
+     两处行为不一致时，人在这一页选完会以为「怎么没选上」。 */
+  if (a === "cnum") {
+    S.cNum = n; render();
+    document.querySelectorAll("details.bseg[open]").forEach(function (d) { d.open = false; });
+    return;
+  }
+  if (a === "ctheme") { S.cTheme = n; render(); return; }
+  if (a === "cmode")  { S.cMode = v; render(); return; }
+  if (a === "cmedium") { S.cMedium = v; render(); return; }
+  if (a === "cratio") { S.cRatio = v; render(); return; }
+  if (a === "cappe")  { S.cAppend = !S.cAppend; render(); return; }
+  if (a === "cbench") {
+    if (S.cNum) S.num = S.cNum;
+    if (S.cTheme) S.theme = S.cTheme;
+    S.mode = S.cMode;
+    S.det = false;
+    go("bench");
+    return;
+  }
+
+  /* ---- 全部词条 ---- */
+  if (a === "lxtab") { S.lxTab = v; render(); return; }
+}, false);
+
+/* 搜索框防抖：48 条卡整页重绘，每敲一个字符就重绘会明显发涩。
+   120ms 足够吃掉连击。重绘后必须把焦点放回原框末尾，
+   否则每敲一个字焦点就跑了，根本没法连续输入。 */
+var searchTimer = null;
+document.addEventListener("input", function (ev) {
+  var id = ev.target && ev.target.id;
+  if (id === "gq") {
+    var v = ev.target.value;
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () {
+      S.q = v;
+      renderGallery(); renderNav();
+      var box = document.getElementById("gq");
+      if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
+    }, 120);
+    return;
+  }
+  /* 需求输入框只存值、不重绘：重绘会重建这个 textarea，
+     每敲一个字焦点就丢了，根本没法连续输入。
+     配对的动作是点「自动配」，不是边打字边配。 */
+  if (id === "ctext") { S.cText = ev.target.value; return; }
+  if (id === "gseed") { S.gSeed = ev.target.value; return; }
+  if (id === "gn") {
+    var n = parseInt(ev.target.value, 10);
+    S.gN = isNaN(n) ? 1 : Math.max(1, Math.min(24, n));
+    return;
+  }
+}, false);
+
+/* 下拉必须走 change，不能挂在 input 上：
+   select 在浏览器里两个事件都发，但不能指望 —— 把它写进 input 监听，
+   一旦哪天只有一个事件到位，下拉就成了「选了没反应」。
+   没反应的下拉比没有下拉更糟：它会让人以为复制用的就是这个主题，其实没变。 */
+document.addEventListener("change", function (ev) {
+  var id = ev.target && ev.target.id;
+  if (id === "gtheme") { S.theme = ev.target.value; render(); return; }
+}, false);
+
+/* ---------- 兜底：任何未捕获异常都要看得见 ----------
+   一个静默失败的界面比一个报错的界面危险得多：
+   报错至少会让人停下来说一句「这里坏了」，
+   而静默失败只会让人以为配方就是这样，然后照着错的去出图。 */
+window.addEventListener("error", function (ev) {
+  console.error("[beauty-album] 未捕获异常：", ev.error || ev.message);
+  toast("界面出错：" + (ev.message || "未知错误") + "（详见控制台）");
+});
+
+/* ============================================================
+ * 启动
+ * ============================================================ */
+
+/* RIGHTS 的浏览器路径必须在这里显式验证一次。
+   album-kit.js 里的 `var RIGHTS = window.RIGHTS || null` 取的是
+   同一个全局绑定 —— 而 data-core.js 也声明过一个叫 RIGHTS 的容器数组，
+   rights.js 加载时把它覆盖成模块对象。顺序对了才拿得到 inspect。
+   拿不到时 album-kit 不报错，只是 out.rights 退化成
+   {worst, can:"", disclaimer:""}，表现是「授权徽章全空但页面一切正常」。
+   所以这个断言不能省。 */
+function verifyRights() {
+  if (!RIGHTS || typeof RIGHTS.inspect !== "function") {
+    console.error("[beauty-album] RIGHTS 没拿到 rights.js 的模块："
+      + "检查 index.html 里 rights.js 必须在 album-kit.js 之前");
+    return false;
+  }
+  var r = KIT.compose(DB, S.num, { themeId: S.theme, mode: S.mode, medium: S.medium });
+  var ok = r.ok && r.rights && Array.isArray(r.rights.items) && r.rights.items.length > 0;
+  if (!ok) {
+    console.error("[beauty-album] compose 未走 RIGHTS.inspect —— out.rights 缺少 items");
+    return false;
+  }
+  return true;
+}
+
+try {
+  /* reindex 必须在任何取词之前：plate()/themeOf() 直接查 IDX，
+     不建索引的话全部返回 null，而表现只是「点了没反应」。 */
+  KIT.reindex(DB);
+} catch (e) {
+  console.error("[beauty-album] reindex 失败：", e);
+}
+var RIGHTS_OK = verifyRights();
+
+/* 自定义出图给一个默认编号：空页进来只有一个「先选编号」的提示，
+   而使用者第一次打开这一页时还没选过任何东西 ——
+   给个默认值不替他做决定，只是让页面立刻可用。 */
+if (!S.cNum) S.cNum = (DB.ALBUM[0] || {}).num;
+
+renderHeader();
+render();
+
+/* 给 smoke_ui.js 用的一组只读钩子。
+   测试需要断言「换主题后身份层不变」这类跨状态的事实，
+   而这些事实在 DOM 上看不到 —— 它们住在 compose 的返回值里。 */
+window.ALBUMUI = {
+  S: S, DB: DB, KIT: KIT, GACHA: GACHA, RIGHTS: RIGHTS,
+  RIGHTS_OK: RIGHTS_OK,
+  go: go, render: render,
+  composeNow: composeNow,
+  gcopyText: gcopyText, gcopyNote: gcopyNote, gcopyOn: gcopyOn,
+  gcopyNeg: gcopyNeg, negStrOf: negStrOf,
+  GCOPY_PILOT: GCOPY_PILOT,
+  copyText: copyText, fallbackCopy: fallbackCopy,
+  manualCopyBox: manualCopyBox, closeCopyBox: closeCopyBox,
+  /* 新页的钩子：体检与自动配都是「现算」的，
+     它们在 DOM 上看不见全貌，只能从返回值断言。 */
+  openDetail: openDetail, closeDetail: closeDetail,
+  autoMatch: autoMatch, splitTerms: splitTerms,
+  rerollOne: rerollOne, copyAllRolls: copyAllRolls,
+  runChecks: runChecks, customBody: customBody,
+  identityFaces: function () {
+    var r = composeNow();
+    var m = {};
+    (DB.IDENTITY_FACES || []).forEach(function (k) {
+      m[k] = (r.faces[k] || {}).c || null;
+    });
+    return m;
+  },
+  galleryList: galleryList
+};
+
+console.log("[beauty-album] 界面已装载：编号 " + (DB.ALBUM || []).length
+  + " 条 / 主题 " + (DB.THEMES || []).length + " 个 / 模式 "
+  + (DB.MODES || []).length + " 种 · 身份层 " + (DB.IDENTITY_FACES || []).length
+  + " 面 · 授权分级 " + (RIGHTS_OK ? "已挂载" : "未挂载"));
+
+})();
+</script>
+</body>
+</html>
