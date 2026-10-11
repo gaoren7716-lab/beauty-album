@@ -101,6 +101,7 @@ var db = require("./_load.js")();
 var N_PLATE = db.ALBUM.length;
 var N_THEME = db.THEMES.length;
 var N_MODE = db.MODES.length;
+var N_MEDIUM = db.MEDIUMS.length;
 
 /* ============================================================
  * A 组 · jsdom 真实 DOM 交互
@@ -195,12 +196,31 @@ if (!jsdom) {
     (UI.DB.IDENTITY_FACES || []).join(","));
 
   var pool = UI.GACHA.pool(UI.DB, {});
-  T("抽卡轴数 == 3", pool.axes.length === 3, pool.axes.map(function (a) { return a.axis; }).join(","));
-  T("组合空间 == 编号×主题×模式",
-    pool.space === N_PLATE * N_THEME * N_MODE, "space " + pool.space);
+  /* 轴数不写死。
+     门类轴补进来之后轴从 3 变 4，写死 3 的断言立刻假红 ——
+     但那是**正确改动**被旧断言惩罚。
+     断言该守的是「每根轴的候选数等于库里对应表的条数」与
+     「组合空间等于各轴候选数连乘」，这两条与轴有几根无关。 */
+  var EXPECT_N = { plate: N_PLATE, theme: N_THEME, medium: N_MEDIUM, mode: N_MODE };
+  T("抽卡的每根轴都在预期内", pool.axes.length === Object.keys(EXPECT_N).length,
+    pool.axes.map(function (a) { return a.axis; }).join(","));
+  var wantSpace = pool.axes.reduce(function (n, a) { return n * (EXPECT_N[a.axis] || 0); }, 1);
+  T("组合空间 == 各轴候选数连乘", pool.space === wantSpace,
+    "space " + pool.space + " / 期望 " + wantSpace);
+  /* 抽到的每一项都必须是候选形状（带 id）。
+     权重 0 的轴（模式）曾经直接把 db.MODES 的原始项填进 picked，
+     于是 picked.mode.id 是 undefined，compose 靠兜底才没出错 ——
+     「靠兜底才对」的地方必须有断言，否则下一次改动就真错了。 */
+  var roll0 = UI.GACHA.roll(UI.DB, { seed: 7 });
+  var shapeBad = Object.keys(roll0.picked).filter(function (k) {
+    return !roll0.picked[k] || !roll0.picked[k].id;
+  });
+  T("抽到的每根轴都是候选形状（有 id）", shapeBad.length === 0,
+    shapeBad.length ? "缺 id：" + shapeBad.join(",")
+                    : Object.keys(roll0.picked).map(function (k) {
+                        return k + "=" + roll0.picked[k].id; }).join(" "));
   pool.axes.forEach(function (a) {
-    T("轴 " + a.axis + " 候选数正确", a.n === (a.axis === "plate" ? N_PLATE
-      : a.axis === "theme" ? N_THEME : N_MODE), a.axis + "=" + a.n);
+    T("轴 " + a.axis + " 候选数正确", a.n === EXPECT_N[a.axis], a.axis + "=" + a.n);
   });
 
   /* 身份层在换主题后不变 —— 这是整个库的立身之本。
@@ -309,8 +329,13 @@ if (!jsdom) {
   var declaredPic = UI.DB.ALBUM.filter(function (p) { return p.test && p.test.pic; });
   T("有配图声明的编号数 = 库里的声明数（不写死）",
     declaredPic.length > 0 && declaredPic.length <= N_PLATE, declaredPic.length + " 条");
+  /* 断言查的是「这件事有没有交代」，不是查某一句措辞 ——
+     措辞会改（色卡的推断方式从 cat+skin 扩到光影/气质/地域时文案就得重写），
+     而「必须交代色卡不是出图」这条要求不会变。
+     写死原句会让每次改文案都假红一次，那是在惩罚正确行为。 */
   T("画廊交代了色卡不是出图结果",
-    /不是某次出图的结果/.test(txt("#main")) && !/没有一张配图/.test(txt("#main")));
+    /色卡/.test(txt("#main")) && /不是出图结果|不是某次出图的结果/.test(txt("#main"))
+    && !/没有一张配图/.test(txt("#main")));
 
   /* ---- 画廊怎么展示图 ----
      配图是从 1 张补到 48 张的过程，所以「看」与「扫」两个用途都要能达成：
@@ -670,7 +695,9 @@ T("written 档徽章带「未验证」后缀",
   group("A5 抽卡");
   click('[data-act="view"][data-v="gacha"]');
   nonEmpty("#main", "抽卡主体");
-  T("显示池规模（现算）", /组合空间/.test(txt("#main")) && new RegExp(String(N_PLATE * N_THEME * N_MODE)).test(txt("#main")));
+  var gSpace = UI.GACHA.pool(UI.DB, {}).space;
+  T("显示池规模（现算）", /组合空间/.test(txt("#main"))
+    && new RegExp(String(gSpace)).test(txt("#main")), "space " + gSpace);
   T("显示语义冲突表 CAT_CLASH", /CAT_CLASH/.test(txt("#main")));
 
   function setSeed(v) {
@@ -871,10 +898,14 @@ T("written 档徽章带「未验证」后缀",
     $$('#main [data-act="cmedium"]').length === (UI.DB.MEDIUMS || []).length,
     $$('#main [data-act="cmedium"]').length + " 个");
   /* 门类状态解耦验证：改一句话出图的门类，不动全局 S.medium ——
-     两页流程独立，状态耦合会让「这里调的画风」悄悄污染别处复制。 */
+     两页流程独立，状态耦合会让「这里调的画风」悄悄污染别处复制。
+     基准取点击前的 S.medium 而不是写死 "photo"：
+     上游用例（抽卡「用这组」）会把 S.medium 改成抽到的门类，那是正确行为。
+     写死初始值等于断言「上游没跑过」，一跑就假红。 */
+  var medBefore = UI.S.medium;
   click('#main [data-act="cmedium"][data-v="anime"]');
-  T("一句话出图切门类只改 cMedium", UI.S.cMedium === "anime" && UI.S.medium === "photo",
-    "cMedium=" + UI.S.cMedium + " S.medium=" + UI.S.medium);
+  T("一句话出图切门类只改 cMedium", UI.S.cMedium === "anime" && UI.S.medium === medBefore,
+    "cMedium=" + UI.S.cMedium + " S.medium=" + UI.S.medium + "（点击前 " + medBefore + "）");
   var rCustom = UI.KIT.compose(UI.DB, "AL-001",
     { themeId: "TH-001", mode: "plain", medium: UI.S.cMedium });
   T("一句话出图词面真的吃到 cMedium",

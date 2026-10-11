@@ -471,7 +471,13 @@ onDisk.forEach(function (nm) {
   if (!hit) {
     E("examples/" + nm + ".png 对不上任何编号 —— 画廊按编号认图，这张图界面永远看不到");
   } else if (!(db.ALBUM.filter(function (p) { return p.num === nm; })[0].test || {}).pic) {
-    W("examples/" + nm + ".png 在库里，但没有 test.pic 声明：图认得出来，但体检与缺口计数会漏掉它");
+    /* 警告要带上补法。
+       只说「缺声明」，读者还得去翻 SCHEMA 才知道 test 长什么样；
+       而这条警告的读者多半正是刚往 examples/ 里丢了张图的人。 */
+    W("examples/" + nm + ".png 在库里，但没有 test.pic 声明：图认得出来，但体检与缺口计数会漏掉它。"
+      + "补法：在该编号条目里加 test:{ model:\"<在哪个模型上跑的>\", pic:\"examples/" + nm
+      + ".png\", hit:[…], miss:[…] } —— model 不写等于这份图没有出处，"
+      + "填「待核实」也可以，但那样它不能算已实测（status 先别改 tested）");
   }
 });
 /* 命名体例：文件名里的编号必须符合三位格式，别放进 AL-1.png 这种 */

@@ -50,11 +50,18 @@ var GACHA = (function () {
   /* ---------------- 轴的声明 ----------------
      三根内置轴 + 可注册的额外轴。
      每根轴声明：怎么从库里取候选、能不能按类目过滤。 */
+  /* 门类在轴里，不是在界面文案里。
+     早先抽卡只抽编号与主题，而页面明写着「编号、主题、门类各随机抽一条」——
+     于是抽出来的 8 组永远是同一种画法，而用户以为自己在随机三种东西。
+     文案承诺过的事，要么实现它，要么删掉那句话；
+     留着一句对不上的说明，比少抽一根轴更糟（它会让人误判抽卡的范围）。 */
   var AXES = [
     { k: "plate", zh: "编号", weight: 3,
       desc: "决定这个人是谁。身份层五面由它定，主题改不了" },
     { k: "theme", zh: "主题", weight: 3,
       desc: "决定画什么。覆盖妆造与场景，不动身份层" },
+    { k: "medium", zh: "门类", weight: 2,
+      desc: "决定怎么画。改的是身份层的表达（皮肤怎么交代、笔触要不要），不改内容" },
     { k: "mode", zh: "模式", weight: 0,
       desc: "决定要不要写字。权重 0 = 只在明确要求时才换" }
   ];
@@ -112,6 +119,14 @@ var GACHA = (function () {
     }
     if (axisK === "mode") {
       return (db.MODES || []).map(function (m) {
+        return { id: m.k, zh: m.zh, cat: m.k };
+      });
+    }
+    if (axisK === "medium") {
+      /* cat 用门类 key 而不是气质类：语义护栏是按「编号气质 × 主题类目」判的，
+         门类不参与那个判断。给门类挂一个气质类的话，
+         按类目过滤时会被 plate 的类目筛掉，门类轴就静默空了。 */
+      return (db.MEDIUMS || []).map(function (m) {
         return { id: m.k, zh: m.zh, cat: m.k };
       });
     }
@@ -220,7 +235,15 @@ var GACHA = (function () {
         if (opt.forceMode) {
           picked[a.axis] = pickOne(a.cands, rnd());
         } else {
-          var def = (db.MODES || []).filter(function (m) { return m.isDefault; })[0];
+          /* 默认值必须**从候选里取**，不能拿 db.MODES 的原始项填。
+             原始项是 {k, zh, isDefault, …}，候选项是 {id, zh, cat} ——
+             两种形状混在 picked 里，下游 picked.mode.id 就是 undefined，
+             compose 收到 undefined 再自己兜回 plain。
+             眼下结果碰巧是对的（默认项恰好是 plain），
+             但这根链上任何一环换顺序就会错，而且错在「模式悄悄不对」这种地方。
+             picked 里每一根轴的形状必须一致。 */
+          var defK = ((db.MODES || []).filter(function (m) { return m.isDefault; })[0] || {}).k;
+          var def = a.cands.filter(function (c) { return c.id === defK; })[0];
           picked[a.axis] = def || a.cands[0];
         }
         return;
@@ -240,7 +263,10 @@ var GACHA = (function () {
       /* 直接出词：抽到什么就直接能贴进模型 */
       result: opt.dryRun ? null : db.KIT.compose(db, picked.plate.id, {
         themeId: picked.theme ? picked.theme.id : null,
-        mode: picked.mode ? picked.mode.id : "plain"
+        mode: picked.mode ? picked.mode.id : "plain",
+        /* 抽到的门类必须传进 compose，否则抽卡抽到的门类只显示在卡面上、
+           词面里还是默认画法 —— 用户复制走会发现「怎么还是实拍」。 */
+        medium: picked.medium ? picked.medium.id : undefined
       })
     };
   }

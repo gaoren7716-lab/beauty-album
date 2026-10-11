@@ -864,6 +864,69 @@ var CAT_TONE = {
   "古典":     { h: 38,  s: 36, l: 39 }
 };
 function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+/* 千分位。十万量级的数字不分组就没法一眼读出量级：
+   「102400」要数位数，「102,400」一眼是十万。 */
+function fmtN(n) {
+  var s = String(n), out = "", c = 0;
+  for (var i = s.length - 1; i >= 0; i--) {
+    out = s[i] + out;
+    if (++c % 3 === 0 && i > 0) out = "," + out;
+  }
+  return out;
+}
+/* 八个文化圈各自往色相上推一点。
+   为什么写在这里而不是给 32 条各编一组色：给条目编色等于新增 32 组
+   永远不会被校验的数据（改了 culture 色不会跟着变）。
+   圈级偏移只需要维护 8 个数，且与 region 字段同源，不会漂。 */
+var CIRCLE_H = {
+  "东亚 · 汉文化圈": 4, "东南亚": 7, "南亚": 11, "西亚与北非": 14,
+  "非洲": -9, "欧洲": -5, "美洲": -12, "大洋洲": -3
+};
+
+/* 光影描述 → 可视参数。
+   每条编号都写了一份「光从哪来、软硬、冷暖、明暗」（80 条全有，且各不相同），
+   这是本库**信息密度最高**却被完全浪费的字段：
+   早先的色卡只看 cat + skin，于是同类的 8 条长得一模一样 ——
+   明明写了「单侧硬光压到接近纯黑」和「阴天散射光明暗差极小」两种完全不同的光，
+   卡片上却给出同一块颜色。色卡理应先把光画出来，
+   因为光是这套配方里最影响成图的那一维。 */
+function lightParse(p) {
+  var s = (p.light || "") + " " + (((p.faces || {}).skin || {}).c || "");
+  var r = { angle: 180, radial: false, contrast: 1, h: 0, l: 0 };
+  /* 方向 */
+  if (/逆光|背后|背光|轮廓光/.test(s))      r.radial = true;
+  else if (/侧上方|斜上方|顶光|上方|偏上|上打来|自上|顶部|顶侧/.test(s)) r.angle = 148;
+  else if (/侧光|侧照|侧向|从侧|掠过|侧位|侧面/.test(s)) r.angle = 100;
+  else if (/底部|下方|低角度|仰射/.test(s))       r.angle = 20;
+  /* 软硬：硬光拉开明暗跨度，散射光几乎不拉开 */
+  if (/硬光|硬侧光|明暗交界线|锐利高光|明暗两半|极清晰/.test(s)) r.contrast *= 1.5;
+  if (/柔光|极柔|过渡极缓|过渡柔和|无硬阴影|边缘柔和/.test(s))   r.contrast *= 0.68;
+  if (/散射|阴天|无明确方向|无明显方向|方向感极弱|均匀|平光/.test(s)) r.contrast *= 0.5;
+  /* 色温 */
+  if (/暖|黄|琥珀|红棕|烛光|黄金|橘|蜜/.test(s)) r.h += 17;
+  if (/冷|青|蓝/.test(s))                        r.h -= 15;
+  /* 明暗 */
+  if (/极暗|沉在暗部|暗部压到|低照度|大半轮廓沉/.test(s)) r.l -= 15;
+  if (/高调|明亮|过曝|整体明亮/.test(s))                  r.l += 9;
+  return r;
+}
+
+/* 条目自身的稳定微差。
+   同一气质类里 8 条的 cat、skin 关键词常常撞车，
+   只靠类级色它们就是 8 块一样的颜色。
+   取骨相与眼目原文做哈希，给一点点色相与明度偏移：
+   「这一点点」必须小到不改变类别识别（±5 色相 / ±4 明度），
+   但又大到肉眼能分出这是两张不同的卡。
+   用哈希而不是随机：随机会让每次重绘换色，编号就失去视觉锚点。 */
+function jitterOf(p) {
+  var f = p.faces || {};
+  var s = ((f.bone || {}).c || "") + "|" + ((f.eye || {}).c || "") + "|" + (p.zh || "");
+  var hv = 0;
+  for (var i = 0; i < s.length; i++) hv = (hv * 31 + s.charCodeAt(i)) | 0;
+  hv = hv < 0 ? -hv : hv;
+  return { h: (hv % 11) - 5, l: ((hv >> 4) % 9) - 4 };
+}
+
 function toneOf(p) {
   var b = CAT_TONE[p.cat] || { h: 210, s: 22, l: 46 };
   var h = b.h, s = b.s, l = b.l;
@@ -874,7 +937,26 @@ function toneOf(p) {
   if (/白皙|浅|苍白|清透/.test(d)) { l += 11; }
   if (/油光|反光|带光/.test(d))  { s += 9; }
   if (/哑光|均匀|无油光/.test(d)) { s -= 8; }
-  return { h: h, s: clamp(s, 4, 80), l: clamp(l, 20, 76) };
+  /* 气质进饱和度：张扬的浓、克制的淡。
+     气质是「这条配方给人的压力大小」，它恰好对应颜色的浓度 ——
+     同样是暖调，「神态张扬」和「神情内敛」不该是同一种饱和度。 */
+  var a = ((p.faces || {}).aura || {}).c || "";
+  if (/张扬|浓|强烈|不容忽视|外放|明艳/.test(a))  s += 9;
+  if (/克制|内敛|含蓄|疏离|清冷|沉稳|不动如山/.test(a)) s -= 8;
+  /* 光影：色温进色相、明暗进明度 */
+  var L = lightParse(p);
+  h += L.h; l += L.l;
+  /* 地域：让唐、波斯、毛利在卡片上就不是同一个色系 */
+  if (p.region) h += (CIRCLE_H[p.region] || 0);
+  /* 条目微差 */
+  var j = jitterOf(p);
+  h += j.h; l += j.l;
+  /* 色相归一到 0–360：累加偏移后 h 会跑出这个范围（实测到过 376）。
+     CSS 会自己取模，但取模之后同一个色系会被切成两端，
+     统计与对拍时看着像两个色。归一之后它就是它本来的那个色。 */
+  h = ((h % 360) + 360) % 360;
+  return { h: h, s: clamp(s, 4, 80), l: clamp(l, 20, 76), contrast: L.contrast,
+           angle: L.angle, radial: L.radial };
 }
 function hsl(t, dl, ds) {
   return "hsl(" + t.h + "," + clamp(t.s + (ds || 0), 3, 90) + "%,"
@@ -882,8 +964,18 @@ function hsl(t, dl, ds) {
 }
 function swatchOf(p) {
   var t = toneOf(p);
-  return "linear-gradient(150deg," + hsl(t, 16, -4) + " 0%,"
-       + hsl(t, 0, 0) + " 48%," + hsl(t, -18, 6) + " 100%)";
+  /* 明暗跨度由光的软硬决定：硬光把跨度拉到 1.5 倍（卡片上就是一道明显的明暗交界），
+     散射光压到 0.5 倍（几乎是一块平色）。这一步是色卡「像不像这条配方」的关键 ——
+     同样是暖调，硬侧光和阴天散射在成图上是两种东西。 */
+  var d = 17 * (t.contrast || 1);
+  if (t.radial) {
+    /* 逆光：中间暗、边缘被勾亮。方向反过来画就成了「正面打光」，
+       那正好把这条配方最显眼的特征画反了。 */
+    return "radial-gradient(circle at 50% 42%," + hsl(t, -d, 4) + " 0%,"
+         + hsl(t, 0, 0) + " 56%," + hsl(t, d * 0.9, -2) + " 100%)";
+  }
+  return "linear-gradient(" + (t.angle || 180) + "deg,"
+       + hsl(t, d, -3) + " 0%," + hsl(t, 0, 0) + " 50%," + hsl(t, -d, 5) + " 100%)";
 }
 /* 八条面色条：身份层走冷色系、内容层走琥珀系。
    这样卡片本身就是「正交机制」的示意图 ——
@@ -1107,6 +1199,13 @@ function cultureCircles(list) {
   list.forEach(function (x) { if (x.region && !m[x.region]) { m[x.region] = 1; seen.push(x.region); } });
   return taxoOrder(((DB.ALBUM_TAXO || {}).circles || []), seen);
 }
+/* 类目 / 文化圈的判据。定义在 ALBUM_TAXO.kindInfo / circleInfo 里。
+   取不到就退回空串，界面上表现为没有 title ——
+   宁可少一句提示，也不在 hover 上编一句看起来像定义的话。 */
+function catInfo(c) { return (((DB.ALBUM_TAXO || {}).kindInfo) || {})[c] || null; }
+function catDef(c) { var i = catInfo(c); return i ? i.def : ""; }
+function catMarks(c) { var i = catInfo(c); return i ? i.marks : []; }
+function circleDef(r) { return ((((DB.ALBUM_TAXO || {}).circleInfo) || {})[r]) || ""; }
 /* 主题按 cat 分组。顺序来自 THEME_TAXO（八类的编排顺序），
    不按拼音、不按数量 —— 库的编排顺序本身就是「按场景区排的」，
    打乱它等于把作者的信息丢掉。 */
@@ -1221,8 +1320,29 @@ function renderHeader() {
     .map(function (r) { return esc(r.zh) + " <b>" + byRk.m[r.k] + "</b>"; }).join(" · ")
     || "—";
 
+  /* 组合总数。
+     为什么要在最上面摆这个数：本库的卖点是「编号 × 主题 × 门类 × 模式」正交，
+     但正交这个词本身不直观 —— 80 条编号听起来像 80 个成品，
+     而它实际能产出的组合是十万量级。不把这个数摆出来，
+     读者看到的只是「一个 80 条的册子」，正交的设计等于白做。
+     数字全部现算：任何一个轴补条目，这个数第二天就该变，
+     写死就会变成一句过期的话。 */
+  var nMed = (DB.MEDIUMS || []).length;
+  var nMode = (DB.MODES || []).length;
+  var nPlat = Object.keys(KIT.PLATFORMS || {}).length;
+  var nCombo = total * T.length * nMed * nMode;      /* 四种轴各取一个 */
+  var nFacet = nCombo * nPlat;                        /* 每种组合可输出的平台方言 */
+
   el("inv").innerHTML =
-    '<div class="invblk"><span class="k">编号总数</span><span class="v"><b>' + total
+    '<div class="invblk" style="flex:1 1 340px"><span class="k">可组合数</span>'
+    + '<span class="v" style="font-size:12px"><b style="font-size:16px;color:var(--accent)">'
+    + fmtN(nCombo) + "</b> 种组合"
+    + '<span style="color:var(--ink3)">（× ' + nPlat + ' 种平台方言 = '
+    + fmtN(nFacet) + ' 份词面）</span></span>'
+    + '<span class="v" style="font-size:10.5px;color:var(--ink3);margin-top:3px">'
+    + "编号 " + total + " × 主题 " + T.length + " × 门类 " + nMed + " × 模式 " + nMode
+    + " —— 四轴各取一个，互不干扰</span></div>"
+    + '<div class="invblk"><span class="k">编号总数</span><span class="v"><b>' + total
     + "</b> 条 · 主题 <b>" + T.length + "</b> 个</span></div>"
     + '<div class="invblk"><span class="k">类目分布（' + sortedCats(A).length + " 类）</span>"
     + '<span class="v" style="font-size:11px">' + catTxt + "</span></div>"
@@ -1527,8 +1647,13 @@ function renderGallery() {
   f += '<button class="fchip' + (S.cat === "全部" ? " on" : "") + '" data-act="fcat" data-v="全部">全部<small>'
      + (DB.ALBUM || []).length + "</small></button>";
   var cc = countsOf(DB.ALBUM || [], "cat");
+  /* 类目筛选挂上判据：只给六个词的话，「明艳」和「暖调柔和」看着是重叠的，
+     归类就成了猜。hover 出来的三行判据说明它凭什么是这一类。 */
   sortedCats(DB.ALBUM || []).forEach(function (c) {
-    f += '<button class="fchip' + (S.cat === c ? " on" : "") + '" data-act="fcat" data-v="' + esc(c) + '">'
+    var mk = catMarks(c);
+    var tip = catDef(c) ? (c + "：" + catDef(c) + (mk.length ? "\n" + mk.join("\n") : "")) : c;
+    f += '<button class="fchip' + (S.cat === c ? " on" : "") + '" data-act="fcat" data-v="' + esc(c) + '"'
+       + ' title="' + esc(tip) + '">'
        + esc(c) + "<small>" + (cc.m[c] || 0) + "</small></button>";
   });
   f += "</div>";
@@ -1545,8 +1670,14 @@ function renderGallery() {
     + ' title="原型段 001–048 不锚定地域；全球段是按文化圈补的编号">全球段<small>' + gN + "</small></button>";
   regions.forEach(function (r) {
     var n = (DB.ALBUM || []).filter(function (p) { return p.region === r; }).length;
+    /* 圈内具体文化从数据现算：写在圈定义里等于替 32 条下结论，
+       改一条就得改这里 —— 必然漂。 */
+    var cs = (DB.ALBUM || []).filter(function (p) { return p.region === r; })
+      .map(function (p) { return p.culture; }).filter(Boolean);
+    var tip = r + (circleDef(r) ? "：" + circleDef(r) : "");
     f += '<button class="fchip' + (S.region === r ? " on" : "") + '" data-act="fregion" data-v="'
-      + esc(r) + '">' + esc(r) + "<small>" + n + "</small></button>";
+      + esc(r) + '" title="' + esc(tip) + (cs.length ? "\n本圈收录：" + cs.join("、") : "") + '">'
+      + esc(r) + "<small>" + n + "</small></button>";
   });
   /* 「更多筛选」开关也放在地域行尾 —— 视觉上它是这一组的延伸。 */
   var moreOn = S.tier !== "全部" || S.rk !== "全部" || S.picOnly || S.gview !== "big";
@@ -1587,11 +1718,15 @@ function renderGallery() {
   /* 有图没图都得说清楚 —— 卡片看着像缩略图，
      很容易被当成「库里已有的出图」。
      现在的规则：examples/<编号>.png 存在就显示那张图，
-     不存在就退回按类目与肤质现推的色卡。
-     两种状态在视觉上分得出来（图有真实细节、色卡是渐变），
-     但**色卡不是出图结果**这件事必须写出来，否则没人会细看。 */
-  f += '<div class="note warn">卡片上的<b>色块是按类目与肤质描述现推的色卡</b>，'
-    + "不是某次出图的结果；只有放进 <code>examples/&lt;编号&gt;.png</code> 的编号才会显示真实配图"
+     不存在就退回色卡。两种状态在视觉上分得出来（图有真实细节、色卡是渐变），
+     但**色卡不是出图结果**这件事必须写出来，否则没人会细看。
+     色卡怎么来的也要写：它是从这条自己的光影/肤色/气质/地域推出来的，
+     不写的话「80 张颜色各不相同」看着像随机配色。 */
+  f += '<div class="note warn">卡片上的<b>色块是色卡，不是出图结果</b>：'
+    + "它由这条自己的<b>光影方向 · 软硬 · 色温</b>加上<b>肤质冷暖</b>、<b>气质浓度</b>、"
+    + "<b>文化圈</b>现推出来 —— 80 张各不相同，同类的也分得开，"
+    + "但它说明的是「这套配方长什么调子」，不是「出图长什么样」。"
+    + "只有放进 <code>examples/&lt;编号&gt;.png</code> 的编号才会显示真实配图"
     + "（命名与待配清单见 <code>gallery-naming.md</code>）。"
     + "点任意一张卡片展开该编号的完整八面与用法指引。</div>";
 
@@ -1620,10 +1755,24 @@ function detailHTML() {
     + esc(p.num) + "</span></div>"
     + '<div class="dbadges">' + tierBadge(p.rights) + riskBadge(p.risk)
     + statusBadge(p)
-    + '<span class="badge" title="类目决定抽卡时的语义兼容判定">' + esc(p.cat) + "</span>"
+    + '<span class="badge" title="' + esc(catDef(p.cat)
+      + (catMarks(p.cat).length ? "\n" + catMarks(p.cat).join("\n") : "")
+      + "\n\n类目同时决定抽卡时的语义兼容判定") + '">' + esc(p.cat) + "</span>"
+    + (p.region ? '<span class="badge" title="' + esc((circleDef(p.region) || p.region)
+      + (p.culture ? "\n具体锚点：" + p.culture : "")) + '">' + esc(p.region) + "</span>" : "")
     + "</div></div>";
 
   h += '<div class="body">';
+
+  /* 归类判据直接写在详情里，不只在 hover 上。
+     hover 提示在触屏上根本出不来 —— 而判据正是让人判断
+     「这条到底该不该是这一类」的依据，藏起来等于没写。 */
+  if (catDef(p.cat)) {
+    h += '<div class="note" style="margin-bottom:8px"><b>' + esc(p.cat) + "　</b>"
+      + esc(catDef(p.cat))
+      + '<div style="margin-top:4px;color:var(--ink3);font-size:10.5px;line-height:1.7">'
+      + catMarks(p.cat).map(function (m) { return esc(m); }).join("<br>") + "</div></div>";
+  }
 
   /* 浮层里也要能复制。
      浮层是「看清楚了再决定要不要用」的地方，看完想用却要关掉浮层
@@ -1889,12 +2038,19 @@ function renderBench() {
 
   /* 页面关系的说明放在轴一上方 —— 新用户最常见的困惑是
      「这几个页面是不是各管各的、我在这里改了那边知道吗」。
-     答案必须写在界面上：四页共享同一套轴，改一处处处生效。
-     写在 README 里不算数，困惑发生在页面上。 */
-  f += '<div class="note">这四页共用<b>同一套当前选择</b>：'
-    + "画廊选的人、这里调的轴、一句话出图自动配的编号、抽卡抽到的组合，"
-    + "改任何一处，其他页的复制与出词都会跟着变 —— "
-    + '顶栏末尾的「此刻：…」随时显示当前组合。</div>';
+     答案必须写在界面上：哪些页共享、哪些页各管各。
+     写在 README 里不算数，困惑发生在页面上。
+
+     这里原来写着「四页共用」并指向顶栏的「此刻：…」——
+     两处都不成立：共用的是画廊 / 精品出图 / 组图三页，
+     一句话出图与抽卡各有自己的一套（cNum / cTheme / cMedium 与抽卡结果），
+     而顶栏从来就没有过「此刻：…」这块显示。
+     一句指向不存在控件的说明，比不写更糟：读者会去找它，找不到就以为坏了。 */
+  f += '<div class="note"><b>画廊</b>与<b>精品出图</b>共用<b>同一套当前选择</b>'
+    + "（编号 · 主题 · 门类 · 模式）：在这两页里改任何一处，另一页的复制与出词都跟着变。"
+    + "<b>组图</b>的编号跟着这套走，主题是它自己勾的多个；"
+    + "<b>一句话出图</b>与<b>抽卡</b>各有自己的一套 —— "
+    + "所以它们不会改掉你在这里调好的组合。</div>";
 
   if (!p) { el("main").innerHTML = '<div class="empty">库里没有可用编号</div>'; return; }
 
@@ -2166,8 +2322,12 @@ function renderGacha() {
   f += '<div class="tkbox"><div class="tl">池规模 · 现算不缓存</div>'
     + '<div class="tkstat">'
     + pool.axes.map(function (a) {
+        /* 编号与主题论「条」（它们是条目），门类与模式论「种」（它们是选项）。
+           统一写成「条」的话「模式 4 条」读起来像在说四个条目，
+           而它其实是四种可选状态 —— 量词错了会让池规模看着像别的东西。 */
+        var unit = (a.axis === "plate" || a.axis === "theme") ? "条" : "种";
         return '<div><span class="k">' + esc(a.zh) + "</span><span class=\"v\">"
-          + a.n + " <small style=\"color:var(--ink3)\">条</small></span></div>";
+          + a.n + " <small style=\"color:var(--ink3)\">" + unit + "</small></span></div>";
       }).join("")
     + '<div><span class="k">组合空间</span><span class="v"><b>' + pool.space + "</b></span></div>"
     + '<div><span class="k">空轴</span><span class="v">' + (pool.empty.length
@@ -2281,6 +2441,8 @@ function rollCard(r, i) {
   var res = r.result;
   var mid = modeIdOf(r.picked.mode);
   var mo = (DB.MODES || []).filter(function (m) { return m.k === mid; })[0] || {};
+  var mid2 = (r.picked.medium || {}).id || "photo";
+  var md = (DB.MEDIUMS || []).filter(function (m) { return m.k === mid2; })[0] || {};
   var tags = (res && res.tags && res.tags.sd) || [];
   var th = r.picked.theme || {};
   return '<div class="scard">'
@@ -2291,6 +2453,9 @@ function rollCard(r, i) {
     + '<div class="st" style="border-top:0"><span class="badge" style="color:#d9b988;border-color:var(--content-line);background:var(--content-soft)">'
     + esc(th.id || "—") + " " + esc(th.zh || "") + "</span>"
     + '<span class="badge">' + esc(mo.zh || mid) + "</span>"
+    /* 门类抽到了就要显示在卡面上：不显示的话，用户看到两张词面不同的卡
+       却不知道差在哪 —— 差别正是门类改写了身份层的表达。 */
+    + '<span class="badge" title="门类：' + esc(md.desc || "") + '">' + esc(md.zh || mid2) + "</span>"
     + '<span style="flex:1"></span>'
     + '<span style="font:10px var(--mono);color:var(--ink3)">seed ' + esc(r.seed) + "</span></div>"
     + (res && res.ok ? '<div class="sw" style="background:' + swatchOf(res.plate) + '"></div>'
@@ -2299,7 +2464,8 @@ function rollCard(r, i) {
     + (r.semanticBlocked
         ? '<span class="sdup" title="被语义护栏挡掉的候选数">挡 ' + r.semanticBlocked + "</span>" : "")
     + '<button class="btn k" data-act="use" data-num="' + esc((r.picked.plate || {}).id || "")
-    + '" data-theme="' + esc(th.id || "") + '" data-mode="' + esc(mid) + '">用这组</button>'
+    + '" data-theme="' + esc(th.id || "") + '" data-mode="' + esc(mid)
+    + '" data-medium="' + esc(mid2) + '">用这组</button>'
     + '<button class="btn p" data-act="copy" data-cp="' + esc(tags.join("，"))
     + '" title="只复制正面词。负面词在「一键复制全部」里逐组给出">复制</button>'
     /* 这一组的负面词不能用编号去现算：那个算的是全局 S.theme/S.mode，
@@ -2333,7 +2499,7 @@ function rerollOne(i, axis) {
   var fresh = GACHA.roll(DB, opt);
   if (!fresh.ok) { toast("重抽失败：" + (fresh.why || "未知")); return; }
 
-  ["plate", "theme", "mode"].forEach(function (k) {
+  ["plate", "theme", "medium", "mode"].forEach(function (k) {
     var shouldKeep = (axis === "all") ? !!lock[k] : (k !== axis || !!lock[k]);
     if (shouldKeep && old.picked[k]) fresh.picked[k] = old.picked[k];
   });
@@ -2342,11 +2508,13 @@ function rerollOne(i, axis) {
   fresh.seed = old.seed;
   fresh.result = KIT.compose(DB, (fresh.picked.plate || {}).id, {
     themeId: (fresh.picked.theme || {}).id || null,
-    mode: modeIdOf(fresh.picked.mode)
+    mode: modeIdOf(fresh.picked.mode),
+    medium: (fresh.picked.medium || {}).id || undefined
   });
   R.rolls[i] = fresh;
   render();
-  toast(axis === "all" ? "整组重抽" : "只换了" + ({ plate: "编号", theme: "主题", mode: "模式" }[axis] || axis));
+  toast(axis === "all" ? "整组重抽" : "只换了"
+    + ({ plate: "编号", theme: "主题", medium: "门类", mode: "模式" }[axis] || axis));
 }
 
 /* 一键复制全部：连着铺的 8 组，一次全带走。
@@ -2918,7 +3086,7 @@ function runChecks() {
     zh: "画廊复制链路", ok: cbad.length === 0 && cneg0.length === 0 && cscene.length === 0,
     v: A.length + " 条 × 当前主题/模式/平台（" + (S.theme || "无") + " · " + S.mode
        + " · " + S.plat.toUpperCase() + "）逐条现跑",
-    d: (cbad.length ? "复制异常：" + cbad.slice(0, 5).join("；") + "。" : "48 条都能复制出完整词面。")
+    d: (cbad.length ? "复制异常：" + cbad.slice(0, 5).join("；") + "。" : A.length + " 条都能复制出完整词面。")
       + (cscene.length ? " 缺场景面：" + cscene.slice(0, 5).join("、") + "。" : "")
       + (cneg0.length ? " 负面词为空：" + cneg0.slice(0, 5).join("、") : " 负面词均非空")
   });
@@ -2938,8 +3106,40 @@ function renderCheck() {
           + esc(c.d) + "</div>";
       }).join("") + "</div>";
 
-  /* 覆盖矩阵：类目 × 授权档 */
+  /* 分类体系：把「凭什么算这一类」摊开。
+     只有六个词时归类是不可判的（明艳 vs 暖调柔和字面重叠），
+     摊开判据之后，读者可以拿它反过来检查某条编错了没有。 */
   var cats = sortedCats(A);
+  f += '<div class="secthead"><h3>分类体系</h3><span class="n">' + cats.length
+    + " 气质类 · " + (cultureCircles(A).length) + " 文化圈</span>"
+    + '<span class="why">原型段按气质成块 · 全球段按文化圈成块 · 两条路各自连续</span></div>'
+    + '<div class="lxgrid">' + cats.map(function (c) {
+        var inProto = A.filter(function (p) { return p.cat === c && !p.region; }).length;
+        var inGlobe = A.filter(function (p) { return p.cat === c && p.region; }).length;
+        return '<div class="lxcard"><div class="lh"><b>' + esc(c) + "</b>"
+          + '<span class="n">原型 ' + inProto + " · 全球 " + inGlobe + "</span></div>"
+          + '<div class="lt" style="color:var(--ink2)">' + esc(catDef(c)) + "</div>"
+          + '<div class="lt" style="margin-top:4px;font-size:10.5px">'
+          + catMarks(c).map(function (m) { return esc(m); }).join("<br>") + "</div></div>";
+      }).join("") + "</div>";
+
+  /* 气质类在全球段的分布缺口。
+     全球段是按文化圈编的（每圈 4 条），气质类随地域走，
+     所以「少年感」这类在全球段一条都没有 —— 这是编排路径的必然结果，
+     不是漏了，但必须写出来：不写的话按气质类浏览会以为全球段没收齐。 */
+  var noGlobe = cats.filter(function (c) {
+    return A.filter(function (p) { return p.cat === c && p.region; }).length === 0;
+  });
+  if (noGlobe.length) {
+    f += '<div class="note warn"><b>气质类在全球段的缺口。</b>'
+      + noGlobe.map(esc).join("、") + " 这 " + noGlobe.length
+      + " 个气质类在全球段（049–080）一条都没有。"
+      + "全球段按文化圈编排、气质随地域走，所以这不是漏登记 —— "
+      + "但这意味着<b>按气质类找不到任何非东亚／非欧洲的对应形象</b>，"
+      + "想补就在 AL-081 之后按该气质挑地域追加，不要插进既有段。</div>";
+  }
+
+  /* 覆盖矩阵：类目 × 授权档 */
   var tiers = DB.RIGHT_TIERS || [];
   var mx = '<table class="matrix"><tr><th>类目</th>'
     + tiers.map(function (t) { return "<th>" + esc(t.k + " " + t.zh) + "</th>"; }).join("")
@@ -3007,9 +3207,9 @@ function renderCheck() {
   }).length;
   f += '<div class="secthead"><h3>已知缺口</h3><span class="n">不掩饰</span>'
     + '<span class="why">写出来的缺口才是可以补的</span></div>'
-    + '<div class="note warn"><b>① 配图覆盖率。</b>48 条编号只有 '
+    + '<div class="note warn"><b>① 配图覆盖率。</b>' + A.length + " 条编号只有 "
     + picCount + " 条放了 <code>examples/&lt;编号&gt;.png</code>，其余 "
-    + (A.length - picCount) + " 条显示的是按 cat + skin 现推的色卡，不是配色数据。"
+    + (A.length - picCount) + " 条显示的是从光影 / 肤质 / 气质 / 文化圈现推的色卡，不是配色数据。"
     + "「这套配方出出来到底长什么样」目前多数还得自己跑一遍；"
     + "清单与命名规矩见 <code>gallery-naming.md</code>。</div>"
     + '<div class="note warn"><b>② 零实测。</b>' + (A.length - testedN) + " / "
@@ -3222,6 +3422,11 @@ document.addEventListener("click", function (ev) {
     var thId = t.getAttribute("data-theme");
     if (thId) S.theme = thId;
     S.mode = t.getAttribute("data-mode") || "plain";
+    /* 门类也要一起带过去。
+       不带的话：抽卡抽到「水墨」，点「用这组」进精品出图还是「实拍」——
+       用户刚选中的画法被丢掉，而界面上没有任何提示说它被丢了。 */
+    var mdId = t.getAttribute("data-medium");
+    if (mdId) S.medium = mdId;
     S.det = false;
     go("bench");
     toast("已送进工作台");
