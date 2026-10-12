@@ -737,6 +737,24 @@ T("written 档徽章带「未验证」后缀",
     return r.result && r.result.ok && (r.result.tags.sd || []).length > 3;
   }));
 
+  /* 快选行：抽 1/4/8 组 + 🎲 随机来一张 */
+  T("快选行四个按钮都在（骰子 + 1/4/8 组）",
+    !!doc.querySelector('[data-act="gdice"]')
+    && !!doc.querySelector('[data-act="rolln"][data-n="1"]')
+    && !!doc.querySelector('[data-act="rolln"][data-n="4"]')
+    && !!doc.querySelector('[data-act="rolln"][data-n="8"]'));
+  click('[data-act="rolln"][data-n="4"]');
+  T("抽 4 组：张数落状态、结果 4 组",
+    UI.S.gN === 4 && !!(UI.S.gRolls && UI.S.gRolls.ok && UI.S.gRolls.rolls.length === 4),
+    (UI.S.gRolls && UI.S.gRolls.rolls || []).length + " 组");
+  UI.S.gSeed = "777"; /* 先种一个 seed —— 骰子必须把它清掉，骰子是真随机 */
+  click('[data-act="gdice"]');
+  T("🎲 随机来一张：清 seed、只抽 1 组、结果区有锚点",
+    UI.S.gSeed === "" && UI.S.gN === 1
+    && !!(UI.S.gRolls && UI.S.gRolls.ok && UI.S.gRolls.rolls.length === 1)
+    && !!doc.getElementById("gachaRolls"),
+    "seed=" + UI.S.gSeed + " n=" + UI.S.gN);
+
   /* 开关：语义护栏 / 强制换模式 / 分类过滤 */
   click('[data-act="tsem"]');
   T("语义护栏可关", UI.S.gSemantic === false);
@@ -827,6 +845,7 @@ T("written 档徽章带「未验证」后缀",
      只有「全部重抽」的话，抽十次也碰不到「同一个人换场景」的对比。 */
   group("A5b 抽卡增强");
   UI.go("gacha");
+  UI.S.gN = 8; /* 本组断言写死 8 组 —— 别让前面用例（骰子把 gN 归 1）的状态漏进来 */
   setSeed("4242");
   click('[data-act="roll"]');
   T("一次铺 8 组", UI.S.gN === 8 && UI.S.gRolls.rolls.length === 8,
@@ -1218,6 +1237,17 @@ T("written 档徽章带「未验证」后缀",
   T("48 张逐张点过：复制内容全部对得上", gbad.length === 0, gbad.slice(0, 5).join("；"));
   T("48 张逐张点过：没有空词 / 半截词", gshort.length === 0, gshort.slice(0, 5).join("；"));
   T("48 张逐张点过：真名一条都没漏出去", gname.length === 0, gname.slice(0, 3).join("；"));
+
+  /* 精图改用：卡上直达精品出图，编号随卡走（与复制按钮左右分工） */
+  var gb = $('#main [data-act="gbench"]');
+  T("画廊卡有「精图改用」按钮", !!gb);
+  if (gb) {
+    var gbNum = gb.getAttribute("data-num");
+    click(gb);
+    T("点精图改用跳到精品出图并带上该编号",
+      UI.S.num === gbNum && UI.S.view === "bench", UI.S.num + " / " + UI.S.view);
+    UI.go("gallery"); UI.render();
+  }
 
   /* 负面词按钮：正面词与负面词必须分开给。
      混在一条里，SD 用户粘进 Positive 框就把「不要文字」写成了「要文字」，

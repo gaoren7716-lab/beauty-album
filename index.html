@@ -129,6 +129,11 @@ header{background:var(--panel);border-bottom:1px solid var(--line);padding:11px 
   font:11px inherit;
 }
 .gact{display:flex;align-items:center;gap:6px;margin-top:7px}
+.gact .sp{flex:1;min-width:4px}
+/* 精图改用：与「复制提示词」左右分工 —— 复制是带走，改用是进工作台。
+   描边款与实心款并排，主次一眼可分 */
+.mini.bench{border-color:var(--accent);color:var(--accent);background:transparent;font-weight:600}
+.mini.bench:hover{background:var(--accent);color:var(--accent-ink)}
 /* min-width:0 不能省：flex 子项默认 min-width:auto，
    不归零的话这行文字会把卡片撑宽，网格里出现一列特别宽的卡。 */
 .gact .what{
@@ -1598,10 +1603,13 @@ function gcard(p) {
     + (gcopyOn(p)
         ? '<div class="gact">'
           + '<button class="mini p" data-act="gcopy" data-num="' + p.num
-          + '" title="复制正面词：' + esc(gcopyNote(p)) + '">复制提示词</button>'
+          + '" title="复制正面词：' + esc(gcopyNote(p)) + '">📋 复制提示词</button>'
           + '<button class="mini neg" data-act="gneg" data-num="' + p.num
           + '" title="复制负面词 —— SD 填 Negative 框，MJ 用 --no，FLUX 一般不用">负面词'
           + negN(p) + "</button>"
+          + '<span class="sp"></span>'
+          + '<button class="mini bench" data-act="gbench" data-num="' + p.num
+          + '" title="带着当前主题/模式/门类进精品出图细调">精图改用</button>'
           + "</div>"
           + '<div class="gwhat">' + esc(gcopyNote(p)) + "</div>"
         : "")
@@ -1808,10 +1816,13 @@ function detailHTML() {
      所以复制按钮在卡片上有一份，在浮层里也有一份，两边同一套现算。 */
   h += '<div class="gact" style="margin-bottom:9px">'
     + '<button class="mini p" data-act="gcopy" data-num="' + p.num
-    + '" title="复制正面词：' + esc(gcopyNote(p)) + '">复制提示词</button>'
+    + '" title="复制正面词：' + esc(gcopyNote(p)) + '">📋 复制提示词</button>'
     + '<button class="mini neg" data-act="gneg" data-num="' + p.num
     + '" title="复制负面词 —— SD 填 Negative 框，MJ 用 --no，FLUX 一般不用">负面词'
     + negN(p) + "</button>"
+    + '<span class="sp"></span>'
+    + '<button class="mini bench" data-act="gbench" data-num="' + p.num
+    + '" title="带着当前主题/模式/门类进精品出图细调">精图改用</button>'
     + '<span class="what">' + esc(gcopyNote(p)) + "</span></div>";
 
   /* 真名只出现在这里，且明确标出「不进提示词」。
@@ -2197,7 +2208,7 @@ function outHTML() {
     + '<div class="ob" id="promptBody">' + esc(body || "（没有词）") + "</div>"
     + '<div class="of"><div class="tabs">' + tabs + "</div>"
     + '<span style="flex:1"></span>'
-    + '<button class="btn p" data-act="copy" data-cp="' + esc(body || "") + '">复制本套</button></div>';
+    + '<button class="btn p" data-act="copy" data-cp="' + esc(body || "") + '">📋 复制本套</button></div>';
 
   /* 负面词 */
   if ((r.neg || []).length) {
@@ -2327,7 +2338,7 @@ function seriesCard(item) {
        ? '<span class="sdup">需改写</span>' : "")
     + '<button class="btn k" data-act="pick" data-num="' + esc(r.plate.num) + '">选中</button>'
     + '<button class="btn p" data-act="copy" data-cp="' + esc(tagJoin(tags, S.plat))
-    + '" title="只复制正面词。负面词在上方「一键复制全部」里逐组给出">复制</button>'
+    + '" title="只复制正面词。负面词在上方「一键复制全部」里逐组给出">📋 复制</button>'
     + "</div></div>";
 }
 
@@ -2366,6 +2377,19 @@ function renderGacha() {
     + "只会给你一张奇怪的结果图，而用户多半以为是自己主题选得怪。"
     + "所以 blocked 数必须给出来：只报总空间会让人以为抽卡范围比实际大得多。</div>"
     + "</div>";
+
+  /* 快选行：最常用的三个组数 + 骰子。
+     骰子是最短路径 —— 不带 seed（真随机）、只抽一张、抽完滚到结果区，
+     「我就想要一张图」的用户点一下就结束。 */
+  f += '<div class="tkbox"><div class="tl">快速开抽</div><div class="row" style="flex-wrap:wrap">'
+    + '<button class="btn p" data-act="gdice" style="font-size:14px;padding:9px 18px" '
+    + 'title="真随机抽一张，不带 seed，抽完滚到结果">🎲 随机来一张</button>'
+    + '<button class="btn" data-act="rolln" data-n="1">抽 1 组</button>'
+    + '<button class="btn" data-act="rolln" data-n="4">抽 4 组</button>'
+    + '<button class="btn" data-act="rolln" data-n="8">抽 8 组</button>'
+    + '<span style="font-size:11px;color:var(--ink3);align-self:center">'
+    + "要指定张数或复现同一组，用下面的 seed 与张数</span>"
+    + "</div></div>";
 
   /* 开关 */
   f += '<div class="tkbox"><div class="tl">抽卡设置</div>'
@@ -2431,10 +2455,10 @@ function renderGacha() {
           + "如实报出来而不是假装每次都不一样。</div>" : "")
         + "</div>";
 
-      f += '<div class="secthead"><h3>抽到的组合</h3><span class="n">' + R.rolls.length
+      f += '<div class="secthead" id="gachaRolls"><h3>抽到的组合</h3><span class="n">' + R.rolls.length
         + " 组</span><span class=\"why\">锁住某一轴后重抽，只动没锁的那几轴</span></div>"
         + '<div class="row" style="margin-bottom:9px">'
-        + '<button class="btn p" data-act="copyall">复制全部 ' + R.rolls.length + " 组</button>"
+        + '<button class="btn p" data-act="copyall">📋 复制全部 ' + R.rolls.length + " 组</button>"
         + '<button class="btn" data-act="roll">全部重抽</button>'
         + '<span style="font-size:11px;color:var(--ink3)">'
         + "每张卡下面可单独换编号 / 换主题 / 换模式 / 整组重抽</span></div>"
@@ -2494,7 +2518,7 @@ function rollCard(r, i) {
     + '" data-theme="' + esc(th.id || "") + '" data-mode="' + esc(mid)
     + '" data-medium="' + esc(mid2) + '">用这组</button>'
     + '<button class="btn p" data-act="copy" data-cp="' + esc(tagJoin(tags, S.plat))
-    + '" title="只复制正面词。负面词在「一键复制全部」里逐组给出">复制</button>'
+    + '" title="只复制正面词。负面词在「一键复制全部」里逐组给出">📋 复制</button>'
     /* 这一组的负面词不能用编号去现算：那个算的是全局 S.theme/S.mode，
        而这一组的主题与模式是它自己抽到的。错配最典型的后果是
        图文组的「不要文字」被加到纯图组，模型照样加字。 */
@@ -2959,7 +2983,7 @@ function customOutHTML() {
     + '<div class="ob" id="promptBody">' + esc(body || "（没有词）") + "</div>"
     + '<div class="of"><div class="tabs">' + tabs + "</div>"
     + '<span style="flex:1"></span>'
-    + '<button class="btn p" data-act="copy" data-cp="' + esc(body || "") + '">复制</button>'
+    + '<button class="btn p" data-act="copy" data-cp="' + esc(body || "") + '">📋 复制</button>'
     + '<button class="btn k" data-act="cbench">去精品出图</button></div>';
 
   /* 追加物清单：说清楚哪几段不是配方产物 */
@@ -3391,6 +3415,15 @@ document.addEventListener("click", function (ev) {
   if (a === "copy") { copyText(t.getAttribute("data-cp") || ""); return; }
   /* 画廊卡片上的一键复制。现算而非读 data-cp：
      主题/模式/平台在别处改了，卡片上的按钮必须跟着变。 */
+  if (a === "gbench") {
+    /* 精图改用：把这张卡带进精品出图。编号必须先落到 S.num ——
+       精品出图与画廊共用两轴，这一步就是「选中」+ 跳页 */
+    S.num = n;
+    S.det = false;
+    go("bench");
+    toast("已送进精品出图");
+    return;
+  }
   if (a === "gcopy") {
     var gp = PLATE[n] || null;
     var gt = gcopyText(gp);
@@ -3452,6 +3485,27 @@ document.addEventListener("click", function (ev) {
     render(); return;
   }
   if (a === "roll")   { doRoll(); return; }
+  if (a === "rolln")  {
+    /* 组数在 data-n 上 —— data-num 已被「编号」占用，不能混用 */
+    S.gN = clamp(parseInt(t.getAttribute("data-n"), 10) || 1, 1, 24);
+    doRoll();
+    return;
+  }
+  if (a === "gdice")  {
+    /* 骰子 = 真随机单抽：清掉 seed（留着会每次抽到同一组）、张数归 1，
+       抽完把结果区滚到眼前 —— 用户点骰子时想要的是「马上给我看一张」 */
+    S.gSeed = "";
+    S.gN = 1;
+    doRoll();
+    var R2 = S.gRolls || {};
+    var pk = (R2.rolls && R2.rolls[0] && R2.rolls[0].picked) || {};
+    toast("🎲 " + ((pk.plate || {}).id || "") + " × " + ((pk.theme || {}).id || "")
+      + " —— 已铺在下方");
+    var box = document.getElementById("gachaRolls");
+    /* jsdom 没有 scrollIntoView —— 真浏览器里才滚 */
+    if (box && box.scrollIntoView) box.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
   if (a === "use") {
     S.num = t.getAttribute("data-num");
     var thId = t.getAttribute("data-theme");
