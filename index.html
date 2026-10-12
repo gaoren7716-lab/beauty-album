@@ -1056,7 +1056,7 @@ var S = {
   advAxis: false, moreFilters: false,
   /* 一句话出图自己的门类选择（与全局解耦：它的编号是自动配的，
      门类也该由本页流程决定）；画廊的复制配置折叠态。 */
-  cMedium: "photo", copyCfg: false,
+  cMedium: "photo",
   /* 两轴（画廊选中与工作台共用同一个编号） */
   num: (DB.ALBUM[0] || {}).num || null,
   /* 默认不挂主题：早先默认 THEMES[0]（TH-001 早高峰地铁），
@@ -1623,53 +1623,15 @@ function negN(p) {
   return n ? " " + n : " 0";
 }
 function renderGallery() {
-  el("mainH").innerHTML = "画廊<span class=\"hint\">看图选人 · 点击了解 · 一键复制</span>";
+  el("mainH").innerHTML = "画廊<span class=\"hint\">只管看和选 · 复制用的主题/门类/模式/平台在精品出图调</span>";
   var list = galleryList();
 
-  /* 复制配置，默认折叠成一行。
-     画廊的主体是「看图选人」，出词参数（主题/门类/模式/平台）
-     只是复制按钮的隐藏输入 —— 输入不该占据展示的主视野。
-     折叠态也必须如实回显当前组合：收起≠没有，
-     复制出来的词就是按这组参数现算的。 */
-  var mo = (DB.MODES || []).filter(function (m) { return m.k === S.mode; })[0] || {};
-  var th = (DB.THEMES || []).filter(function (t) { return t.num === S.theme; })[0] || {};
-  var md = (DB.MEDIUMS || []).filter(function (m) { return m.k === S.medium; })[0] || {};
-  var cfgHead = '<div class="cfgbar">'
-    + '<button class="mini' + (S.copyCfg ? " on" : "") + '" data-act="copycfg" data-v="'
-    + (S.copyCfg ? "0" : "1") + '" title="主题 / 门类 / 模式 / 平台 —— '
-    + '卡片上「复制提示词」按这组参数现算">'
-    + (S.copyCfg ? "收起复制配置" : "复制配置") + "："
-    + esc(th.num || "未选") + " · " + esc(md.zh || "-") + " · " + esc(mo.zh || "-") + " · "
-    + esc(S.plat.toUpperCase()) + (S.copyCfg ? "" : " ▾") + "</button></div>";
-  var cfgBody = "";
-  if (S.copyCfg) {
-    cfgBody = '<div class="morebox">'
-      + '<div class="filters" style="margin-bottom:4px"><b style="font-size:11px;color:var(--ink2)">主题</b>'
-      + '<select id="gtheme" title="场景面由它给：没有主题的编号合成出来缺这一面">'
-      + (DB.THEMES || []).map(function (t) {
-          return '<option value="' + esc(t.num) + '"' + (t.num === S.theme ? " selected" : "") + ">"
-            + esc(t.num + " " + t.zh) + "</option>";
-        }).join("")
-      + "</select></div>"
-      + '<div class="filters" style="margin-bottom:4px"><b style="font-size:11px;color:var(--ink2)">门类</b>'
-      + (DB.MEDIUMS || []).map(function (m) {
-          return '<button class="mini' + (S.medium === m.k ? " on" : "") + '" data-act="medium" data-v="'
-            + m.k + '" title="' + esc(m.desc + (m.caution ? "\n\n注意：" + m.caution : "")) + '">'
-            + esc(m.zh) + "</button>";
-        }).join("") + "</div>"
-      + '<div class="filters" style="margin-bottom:4px"><b style="font-size:11px;color:var(--ink2)">模式</b>'
-      + (DB.MODES || []).map(function (m) {
-          return '<button class="mini' + (S.mode === m.k ? " on" : "") + '" data-act="mode" data-v="'
-            + m.k + '" title="' + esc(m.desc) + '">' + esc(m.zh) + "</button>";
-        }).join("") + "</div>"
-      + '<div class="filters"><b style="font-size:11px;color:var(--ink2)">平台</b>'
-      + Object.keys(KIT.PLATFORMS || {}).map(function (k) {
-          return '<button class="mini' + (S.plat === k ? " on" : "") + '" data-act="plat" data-v="'
-            + k + '" title="' + esc(PLAT_WHAT[k] || "") + '">' + esc(k.toUpperCase()) + "</button>";
-        }).join("") + "</div>"
-      + "</div>";
-  }
-  var f = cfgHead + cfgBody;
+  /* 画廊 = 纯浏览。轴控件（主题/门类/模式/平台）全部收进精品出图 ——
+     早先这里挂着「复制配置」折叠区，实测用户的观感是画廊在干工作台的事：
+     看图的人不需要先面对四行轴控件。
+     卡片上的「复制提示词」用的就是精品出图里调好的那组共享轴
+     （卡片下的轴信息行如实回显），要改参数点「精图改用」过去改。 */
+  var f = "";
 
   f += '<input type="search" id="gq" placeholder="搜索编号 / 名称 / 任意一面描述…" value="' + esc(S.q) + '" autocomplete="off">';
 
@@ -2084,8 +2046,9 @@ function renderBench() {
      一句话出图与抽卡各有自己的一套（cNum / cTheme / cMedium 与抽卡结果），
      而顶栏从来就没有过「此刻：…」这块显示。
      一句指向不存在控件的说明，比不写更糟：读者会去找它，找不到就以为坏了。 */
-  f += '<div class="note"><b>画廊</b>与<b>精品出图</b>共用<b>同一套当前选择</b>'
-    + "（编号 · 主题 · 门类 · 模式）：在这两页里改任何一处，另一页的复制与出词都跟着变。"
+  f += '<div class="note"><b>全库的轴都在这一页调</b>：编号 · 主题 · 门类 · 模式 · 平台。'
+    + "<b>画廊</b>只管看和选 —— 它卡片上的「复制提示词」用的就是这里调好的组合，"
+    + "要改参数从卡片上的「精图改用」直接过来。"
     + "<b>组图</b>的编号跟着这套走，主题是它自己勾的多个；"
     + "<b>一句话出图</b>与<b>抽卡</b>各有自己的一套 —— "
     + "所以它们不会改掉你在这里调好的组合。</div>";
@@ -3390,8 +3353,6 @@ document.addEventListener("click", function (ev) {
   if (a === "fregion") { S.region = v; render(); return; }
   if (a === "advaxis") { S.advAxis = v === "1"; render(); return; }
   if (a === "morefilters") { S.moreFilters = v === "1"; render(); return; }
-  if (a === "copycfg") { S.copyCfg = v === "1"; render(); return; }
-
   if (a === "pick") {
     S.num = n;
     /* 选中即打开详情浮层：点一张卡片的目的就是看它，

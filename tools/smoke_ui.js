@@ -1001,44 +1001,27 @@ T("written 档徽章带「未验证」后缀",
   T("每张卡都挂了复制按钮", gb.length === UI.DB.ALBUM.length,
     gb.length + " / " + UI.DB.ALBUM.length);
 
-  /* ---- 画廊复制配置（原全局轴条的画廊职能）----
-     轴控件回归各页面：画廊的复制参数折叠成一行，
-     折叠态按钮本身就是回显 —— 它说的组合就是复制会用的那组。
-     一句话出图与抽卡不消费全局主题（前者自动配、后者随机），
-     所以顶栏不再常驻轴条 —— 之前那种常驻是在撒谎。 */
-  group("A5c2 画廊复制配置折叠");
+  /* ---- 画廊 = 纯浏览（轴控件全部收进精品出图）----
+     用户实测的结论：看图的人不该先面对四行轴控件。
+     画廊卡片上的「复制提示词」用精品出图里调好的共享轴，
+     卡下的轴信息行如实回显；改参数走「精图改用」。 */
+  group("A5c2 画廊只浏览");
   T("全局轴条已撤销（顶栏不再常驻轴控件）",
     !doc.getElementById("axisbar"),
     doc.getElementById("axisbar") ? "axisbar 还在" : "已移除");
-  var cfgBtn = $('#main [data-act="copycfg"]');
-  T("复制配置默认折叠成一行", !!cfgBtn && /复制配置/.test(cfgBtn.textContent),
-    cfgBtn ? cfgBtn.textContent.slice(0, 40) : "无");
-  T("折叠态按钮就是回显（含四轴当前值）",
-    !!cfgBtn
-    && cfgBtn.textContent.indexOf(UI.S.theme) >= 0
-    && cfgBtn.textContent.indexOf(UI.S.plat.toUpperCase()) >= 0
-    && cfgBtn.textContent.indexOf((UI.DB.MEDIUMS.filter(function (m) { return m.k === UI.S.medium; })[0] || {}).zh || "") >= 0,
-    cfgBtn ? cfgBtn.textContent.slice(0, 50) : "无");
-  T("折叠时不渲染轴控件（按需渲染，不是藏起来）",
-    !$('#main #gtheme') && $$('#main [data-act="medium"]').length === 0);
-  click(cfgBtn);
-  var themeSel = doc.getElementById("gtheme");
-  T("展开后出现主题下拉，列出全部主题",
-    !!themeSel && themeSel.options.length === UI.DB.THEMES.length,
-    themeSel ? themeSel.options.length + " 项" : "无");
-  T("下拉当前值 = 实际会用到的主题", !!themeSel && themeSel.value === UI.S.theme,
-    themeSel ? themeSel.value + " vs " + UI.S.theme : "无");
-  var other = UI.DB.THEMES.filter(function (t) { return t.num !== UI.S.theme; })[0];
-  themeSel.value = other.num;
-  themeSel.dispatchEvent(new win.Event("change", { bubbles: true }));
-  T("改下拉真的生效（不是选了没反应）", UI.S.theme === other.num,
-    UI.S.theme + " vs " + other.num);
-  T("展开后四组控件齐全（主题/门类/模式/平台）",
-    $$('#main [data-act="medium"]').length === (UI.DB.MEDIUMS || []).length
-    && $$('#main [data-act="mode"]').length === UI.DB.MODES.length
-    && $$('#main [data-act="plat"]').length === Object.keys(UI.KIT.PLATFORMS).length);
-  click('#main [data-act="copycfg"]');
-  T("能收回折叠态", !$('#main #gtheme'));
+  T("画廊没有任何轴控件（主题/门类/模式/平台/配置开关都不在）",
+    !doc.getElementById("gtheme")
+    && !$('#main [data-act="copycfg"]')
+    && $$('#main [data-act="medium"]').length === 0
+    && $$('#main [data-act="mode"]').length === 0
+    && $$('#main [data-act="plat"]').length === 0);
+  /* 复制必须仍跟随共享轴：改状态里的主题，同一张卡复制出不同的词 */
+  var g0 = UI.DB.ALBUM[0];
+  var gcBefore = UI.gcopyText(g0);
+  UI.S.theme = UI.DB.THEMES.filter(function (t) { return t.num !== UI.S.theme; })[0].num;
+  var gcAfter = UI.gcopyText(g0);
+  T("画廊复制跟随精品出图的轴（共享状态，不是画廊自己的）",
+    !!gcBefore && !!gcAfter && gcBefore !== gcAfter);
   UI.S.theme = (UI.DB.THEMES[0] || {}).num; UI.render();
 
   /* ---- 页签与下线页 ----
@@ -1282,6 +1265,8 @@ T("written 档徽章带「未验证」后缀",
   var p001 = UI.DB.ALBUM.filter(function (x) { return x.num === "AL-001"; })[0];
   var before = UI.gcopyText(p001);
   var themeBefore = UI.S.theme;
+  /* other 原在已删的 A5c2 配置组里定义 —— 这里自己算，不跨组借变量 */
+  var other = UI.DB.THEMES.filter(function (t) { return t.num !== themeBefore; })[0];
   UI.S.theme = other.num; UI.render();
   var after = UI.gcopyText(p001);
   T("换主题后同一张卡复制出的词跟着变", before !== after);
