@@ -11,12 +11,13 @@
 
 ## 画廊图鉴
 
-有实拍图的放图，没图的放配方色卡（颜色由光影/肤质/气质/文化圈现推，80 张各不相同）——
+有实拍图的放图，没图的放配方色卡（颜色由光影/肤质/气质/文化圈现推，张张不同）——
 全部 80 个编号见 **[GALLERY.md](GALLERY.md)**。
 
 | | | | |
 |---|---|---|---|
 | <img src="examples/AL-001.png" width="150"><br>**AL-001** 霜白刀刃 ✅ | <img src="examples/AL-002.png" width="150"><br>**AL-002** 静水 ⏳ | <img src="examples/AL-003.png" width="150"><br>**AL-003** 鹤骨 ⏳ | <img src="examples/AL-004.png" width="150"><br>**AL-004** 夜行 ⏳ |
+| <img src="examples/AL-009.png" width="150"><br>**AL-009** 蜜色圆光 ⏳ | <img src="examples/AL-015.png" width="150"><br>**AL-015** 秋叶 ⏳ | <img src="examples/AL-020.png" width="150"><br>**AL-020** 棱镜 ⏳ | <img src="examples/AL-023.png" width="150"><br>**AL-023** 疏星 ⏳ |
 
 ## 怎么用
 
