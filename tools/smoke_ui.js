@@ -452,16 +452,20 @@ if (!jsdom) {
     pzTxt.indexOf(UI.DB.ALBUM.filter(function (p) { return p.num === "AL-001"; })[0].test.model) >= 0);
   click('[data-act="pzclose"]');
   T("放大浮层能关掉", !/mask on/.test(pm.className || ""));
-  /* 没图的编号点放大必须自报，不许开一个空的浮层 */
-  UI.S.num = "AL-002"; UI.render();
+  /* 没图的编号点放大必须自报，不许开一个空的浮层。
+     动态取一个真正没配图的编号（不写死 AL-002 —— 002 现在已经有图了，
+     写死的话配图补到某天就会开始骗人，正是上一轮踩过的同类坑）。 */
+  var noPic = UI.DB.ALBUM.filter(function (p) { return !(p.test && p.test.pic); })[0];
   T("没配图的编号不给开浮层", (function () {
-    var z2 = $('#main .gpic[data-num="AL-002"]');
+    if (!noPic) return true; // 没有无图编号时前提不成立，放行而不是假红
+    UI.S.num = noPic.num; UI.render();
+    var z2 = $('#main .gpic[data-num="' + noPic.num + '"]');
     if (!z2) return false;
     click(z2);
     var open = /mask on/.test((doc.getElementById("pmask") || {}).className || "");
     click('[data-act="pzclose"]');
     return !open;
-  })(), "");
+  })(), noPic ? noPic.num : "（全部已配图，跳过）");
 
   /* 搜索：走 input 事件，与真实输入同一条路径 */
   var q = doc.getElementById("gq");

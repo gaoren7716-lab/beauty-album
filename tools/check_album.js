@@ -452,6 +452,14 @@ declared.forEach(function (p) {
     E(p.num + " 声明有配图（" + p.test.pic + "）但文件不在 examples/：界面会说「已配图」而点开是空白");
   }
   if (p.test.pic && fs.existsSync(path.join(__dirname, "..", p.test.pic.replace(/\//g, path.sep)))) {
+    if (p.test.model === "待核实") {
+      /* 出图模型还没留档。图算入库、缺口计数认它，但绝不能进 tested 档 ——
+         status 保持 written，等补了 model + hit/miss 再升。
+         这里 return 掉，避免下方「有 test 记录却非 tested」被误判成错。 */
+      W(p.num + " 配图已登记但 model 为「待核实」：图计入已配图、不计入已实测（status=" + p.status
+        + "）；确认出图模型后补 model + hit/miss 即可把 status 升到 tested");
+      return;
+    }
     /* 文件在。test 类信息必须自带模型名，否则「实测」无从谈起。 */
     if (!p.test.model) W(p.num + " 有配图但 test.model 为空 —— 换模型就不成立，却没说在哪个模型上成立");
     if (!(p.test.hit || []).length && !(p.test.miss || []).length) {

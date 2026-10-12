@@ -90,7 +90,11 @@ ALBUM.push(
   },
   read:"这一号是「不攻击」的方向：所有面都收着。"
     + "想出有冲突感的图，用它当基底再加锐利的面，比反过来容易。",
-  fact:["形象为原创抽取"] },
+  fact:["形象为原创抽取"],
+  /* 配图已入库（examples/AL-002.png），但出图模型当时没留档。
+     标「待核实」：图认得出来、缺口计数算它，但绝不谎称已实测
+     （status 仍是 written，不进 tested 档）。等确认模型名再补 hit/miss。 */
+  test:{ model:"待核实", pic:"examples/AL-002.png" } },
 
 { num:"AL-003", cat:"冷调锐利", status:"written",
   zh:"鹤骨", en:"crane",
@@ -115,7 +119,10 @@ ALBUM.push(
   },
   read:"「鹤骨」靠比例不靠五官。想加强它，加形体面而不是加骨相面 —— "
     + "换骨相会让这张脸跑掉，加比例只会让它更鹤。",
-  fact:["形象为原创抽取"] },
+  fact:["形象为原创抽取"],
+  /* 配图已入库（examples/AL-003.png），出图模型未留档。
+     同 AL-002：标「待核实」，status 保持 written，不谎称已实测。 */
+  test:{ model:"待核实", pic:"examples/AL-003.png" } },
 
 { num:"AL-004", cat:"冷调锐利", status:"written",
   zh:"夜行", en:"nightwalker",
