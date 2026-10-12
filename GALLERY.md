@@ -16,13 +16,13 @@
 
 |   |   |   |   |
 |---|---|---|---|
-| <img src="dist/swatches/AL-005.svg" width="150"><br>**AL-005** 刀背 | <img src="dist/swatches/AL-006.svg" width="150"><br>**AL-006** 霜白新娘 | <img src="dist/swatches/AL-007.svg" width="150"><br>**AL-007** 深水 | <img src="dist/swatches/AL-008.svg" width="150"><br>**AL-008** 铁灰 |
+| <img src="examples/AL-005.png" width="150"><br>**AL-005** 刀背 ⏳ | <img src="examples/AL-006.png" width="150"><br>**AL-006** 霜白新娘 ⏳ | <img src="examples/AL-007.png" width="150"><br>**AL-007** 深水 ⏳ | <img src="examples/AL-008.png" width="150"><br>**AL-008** 铁灰 ⏳ |
 
 ### 暖调柔和 —— 轮廓无角、肤色偏暖、姿态亲近（009–016）
 
 |   |   |   |   |
 |---|---|---|---|
-| <img src="dist/swatches/AL-009.svg" width="150"><br>**AL-009** 蜜色圆光 | <img src="dist/swatches/AL-010.svg" width="150"><br>**AL-010** 麦田 | <img src="dist/swatches/AL-011.svg" width="150"><br>**AL-011** 陶土 | <img src="dist/swatches/AL-012.svg" width="150"><br>**AL-012** 米白 |
+| <img src="examples/AL-009.png" width="150"><br>**AL-009** 蜜色圆光 ⏳ | <img src="examples/AL-010.png" width="150"><br>**AL-010** 麦田 ⏳ | <img src="examples/AL-011.png" width="150"><br>**AL-011** 陶土 ⏳ | <img src="examples/AL-012.png" width="150"><br>**AL-012** 米白 ⏳ |
 
 |   |   |   |   |
 |---|---|---|---|

@@ -173,7 +173,8 @@ ALBUM.push(
       c:"结构感强的深色上衣，肩线有支撑，剪裁硬" }
   },
   read:"这一号的强度来自「不动」。给它加表情会立刻变弱。",
-  fact:["形象为原创抽取"] },
+  fact:["形象为原创抽取"],
+  test:{ model:"待核实", pic:"examples/AL-005.png" } },
 
 { num:"AL-006", cat:"冷调锐利", status:"written",
   zh:"霜白新娘", en:"frostbride",
@@ -198,7 +199,8 @@ ALBUM.push(
   },
   read:"这一号是唯一「冷 + 柔」的组合，"
     + "所以它对主题特别挑：冷硬主题（如机械、末世）配它会显得假。",
-  fact:["形象为原创抽取"] },
+  fact:["形象为原创抽取"],
+  test:{ model:"待核实", pic:"examples/AL-006.png" } },
 
 { num:"AL-007", cat:"冷调锐利", status:"written",
   zh:"深水", en:"deepwater",
@@ -223,7 +225,8 @@ ALBUM.push(
   },
   read:"这一号的核心是「水感」。换主题时如果换成干燥明亮的场景，"
     + "湿发与水光就成了错误信息。",
-  fact:["形象为原创抽取"] },
+  fact:["形象为原创抽取"],
+  test:{ model:"待核实", pic:"examples/AL-007.png" } },
 
 { num:"AL-008", cat:"冷调锐利", status:"written",
   zh:"铁灰", en:"irongrey",
@@ -248,7 +251,8 @@ ALBUM.push(
   },
   read:"这一号是「底板」—— 几乎没有特征。"
     + "它的用途是当基底往上叠别的面，而不是单独出图。",
-  fact:["形象为原创抽取"] },
+  fact:["形象为原创抽取"],
+  test:{ model:"待核实", pic:"examples/AL-008.png" } },
 
 /* ============ 009–016 · 暖调柔和 ============ */
 { num:"AL-009", cat:"暖调柔和", status:"written",
@@ -274,7 +278,8 @@ ALBUM.push(
   },
   read:"这一号靠「暖」与「圆」两条线成立。"
     + "不要加冷调配件（银饰、冷色发），会直接破坏整体。",
-  fact:["形象为原创抽取"] },
+  fact:["形象为原创抽取"],
+  test:{ model:"待核实", pic:"examples/AL-009.png" } },
 
 { num:"AL-010", cat:"暖调柔和", status:"written",
   zh:"麦田", en:"wheatfield",
@@ -300,7 +305,8 @@ ALBUM.push(
   read:"这一号的强度靠光不靠脸。"
     + "如果只取编号不看 light，出图会明显比预期平淡 —— "
     + "这号的光照条件是它的一半。",
-  fact:["形象为原创抽取"] },
+  fact:["形象为原创抽取"],
+  test:{ model:"待核实", pic:"examples/AL-010.png" } },
 
 { num:"AL-011", cat:"暖调柔和", status:"written",
   zh:"陶土", en:"terracotta",
@@ -325,7 +331,8 @@ ALBUM.push(
   },
   read:"这一号是「暖且厚实」的方向。"
     + "它明确拒绝纤细 —— 想做纤柔方向请换号，不要改它的形体面。",
-  fact:["形象为原创抽取"] },
+  fact:["形象为原创抽取"],
+  test:{ model:"待核实", pic:"examples/AL-011.png" } },
 
 { num:"AL-012", cat:"暖调柔和", status:"written",
   zh:"米白", en:"ricewhite",
@@ -350,7 +357,8 @@ ALBUM.push(
   },
   read:"这一号偏幼态。给它加成熟妆造或成熟场景会明显违和 —— "
     + "幼态感的来源是比例与皮肤，不是年龄标签。",
-  fact:["形象为原创抽取"] },
+  fact:["形象为原创抽取"],
+  test:{ model:"待核实", pic:"examples/AL-012.png" } },
 
 { num:"AL-013", cat:"暖调柔和", status:"written",
   zh:"琥珀眼", en:"amber",
