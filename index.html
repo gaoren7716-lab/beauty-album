@@ -543,6 +543,22 @@ header{background:var(--panel);border-bottom:1px solid var(--line);padding:11px 
    只靠文案区分时，「复制提示词」和「负面词」在小卡片上很容易点反。 */
 .mini.neg{border-color:#5f3236;color:#eebcc0;background:#2a1a1c;font-weight:600}
 .mini.neg:hover{border-color:var(--rk-identity);color:#fff}
+/* 画廊卡上的复制按钮是这张卡的主行动点，不能跟普通小标签一个待遇。
+   三个动作缺一不可：加大（点击区从 2px 7px 提到 6px 10px、最小高 28px，
+   拇指和触屏都点得中）、提亮（暖金渐变实底 + 外发光，从标签堆里跳出来）、
+   平分整行（flex:1，两个按钮各占一半，不再靠字宽挤）。 */
+.gact .mini{
+  flex:1;padding:6px 10px;font-size:12px;border-radius:6px;
+  min-height:28px;line-height:1.2;
+}
+.gact .mini.p{
+  background:linear-gradient(180deg,#eebd72,#d9a05b);
+  border-color:#eebd72;color:#1a1206;font-weight:700;
+  box-shadow:0 0 0 1px rgba(238,189,114,.22),0 1px 7px rgba(217,160,91,.38);
+}
+.gact .mini.p:hover{opacity:1;background:linear-gradient(180deg,#f6c981,#e2ab67)}
+.gact .mini.neg{border-color:#7d4046;color:#f4c9cd;background:#332023;font-weight:700}
+.gact .mini.neg:hover{border-color:var(--rk-identity);color:#fff}
 .lockbar{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
 /* ---------- 自定义出图 ---------- */
 .cgrid{display:grid;gap:11px;grid-template-columns:minmax(300px,.86fr) minmax(340px,1.14fr)}
@@ -644,7 +660,9 @@ header{background:var(--panel);border-bottom:1px solid var(--line);padding:11px 
   overflow:hidden;cursor:pointer;display:flex;flex-direction:column;
 }
 .gcard:hover{border-color:var(--line2)}
-.gcard.on{border-color:var(--accent);box-shadow:0 0 0 1px rgba(217,160,91,.34)}
+/* 选中框必须一眼能认：1px 半透明在深底网格里和 hover 态几乎没差别，
+   提到 2px 实色描边 + 柔光，选了哪张卡不用找。 */
+.gcard.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(217,160,91,.55),0 0 14px rgba(217,160,91,.28)}
 .gsw{position:relative;height:104px;overflow:hidden}
 .gsw::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.30),transparent 44%,rgba(0,0,0,.42))}
 .gsw .gid{

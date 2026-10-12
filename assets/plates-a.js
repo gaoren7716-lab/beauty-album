@@ -56,16 +56,15 @@ ALBUM.push(
     + "换主题时别给它加圆润的东西（毛绒、蕾丝、卷发），会立刻打架。",
   fact:["形象为原创抽取，不指向任何可识别真人"],
   /* test 类：换模型就不成立，所以写清楚「在哪个模型上」。
-     这条实测推翻了一个想当然的假设 —— 原以为纯图模式的负面词
-     （第一条就是「水印」）能压住水印，实际那个模型不执行。
-     结论已同步进 gallery-naming.md 与 README。 */
+     2026-10-12 重出：新图已无强制水印（旧版右下角带「AI生成」水印，
+     由旧版得出的「负面词压不住水印」结论作为历史记录保留在 gallery-naming.md，
+     教训本身仍成立：负面词只在支持的模型上生效，不是承诺）。 */
   test:{ model:"GPT 图像（ImageGen 后端）", theme:"TH-001", mode:"plain",
     pic:"examples/AL-001.png", size:"1024x1536",
     hit:["颅顶与颧骨结构对得上","发到腰的高马尾成立","单侧硬光与近纯黑暗部成立",
          "车窗倒影成立","人群虚化成立"],
-    miss:["右下角强制「AI生成」水印 —— prompt 显式写 no watermark 仍不去",
-          "dress 面（黑色单色剪裁）被 TH-001 的米色风衣覆盖，未在本图验证"],
-    note:"负面词不是承诺，只在支持 negative 的模型上成立" } },
+    miss:["dress 面（黑色单色剪裁）被 TH-001 的米色风衣覆盖，未在本图验证"],
+    note:"负面词不是承诺，只在支持 negative 的模型上成立（出自旧版带水印图，见 gallery-naming.md）" } },
 
 { num:"AL-002", cat:"冷调锐利", status:"written",
   zh:"静水", en:"stillwater",
@@ -147,7 +146,10 @@ ALBUM.push(
   },
   read:"这一号靠「暗」成立。给它强光会把氛围打散 —— "
     + "要用亮光时优先换 light 面而不是删掉它。",
-  fact:["形象为原创抽取"] },
+  fact:["形象为原创抽取"],
+  /* 配图已入库（examples/AL-004.png），出图模型未留档。
+     同 AL-002/003：标「待核实」，status 保持 written，不谎称已实测。 */
+  test:{ model:"待核实", pic:"examples/AL-004.png" } },
 
 { num:"AL-005", cat:"冷调锐利", status:"written",
   zh:"刀背", en:"bladeback",
