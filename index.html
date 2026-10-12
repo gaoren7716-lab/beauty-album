@@ -892,6 +892,12 @@ function fmtN(n) {
   }
   return out;
 }
+/* 词面连接符跟平台语言走：GPT/自然语言是中文词面用全角逗号；
+   SD/MJ/FLUX 现在出英文词面，用半角逗号 + 空格 ——
+   英文段之间夹全角逗号会被模型当成噪声 token。 */
+function tagJoin(tags, plat) {
+  return (plat === "gpt" || plat === "nl") ? tags.join("，") : tags.join(", ");
+}
 /* 八个文化圈各自往色相上推一点。
    为什么写在这里而不是给 32 条各编一组色：给条目编色等于新增 32 组
    永远不会被校验的数据（改了 culture 色不会跟着变）。
@@ -1048,7 +1054,10 @@ var S = {
   cMedium: "photo", copyCfg: false,
   /* 两轴（画廊选中与工作台共用同一个编号） */
   num: (DB.ALBUM[0] || {}).num || null,
-  theme: (DB.THEMES[0] || {}).num || null,
+  /* 默认不挂主题：早先默认 THEMES[0]（TH-001 早高峰地铁），
+     不换轴时复制的每条词面都带「地铁 + 咖啡」—— 用户以为是配方自带。
+     无主题是合法状态（人像用法），出词界面标「未选主题」。 */
+  theme: null,
   mode: "plain", plat: "gpt", medium: "photo",
   /* 组图 */
   swCat: "全部", swPicked: {}, swOut: null,
@@ -1515,7 +1524,7 @@ function gcopyText(p) {
   var r = KIT.compose(DB, p.num, { themeId: S.theme, mode: S.mode, medium: S.medium });
   if (!r || !r.ok) return null;
   var tags = (r.tags && r.tags[S.plat]) || [];
-  return (S.plat === "nl") ? (r.nl || "") : tags.join("，");
+  return (S.plat === "nl") ? (r.nl || "") : tagJoin(tags, S.plat);
 }
 /* 只写轴信息，不写「复制」—— 按钮文案已经说了复制，
    卡内这一行要留给两轴本身：窄卡片只有 ~180px 可用宽度，
@@ -2153,7 +2162,7 @@ function outHTML() {
           : "") + "</div>";
   }
   var tags = (r.tags && r.tags[S.plat]) || [];
-  var body = (S.plat === "nl") ? r.nl : tags.join("，");
+  var body = (S.plat === "nl") ? r.nl : tagJoin(tags, S.plat);
   var meta = { sd:"Stable Diffusion", mj:"Midjourney", flux:"FLUX", nl:"自然语言", gpt:"GPT 图像" };
 
   var tabs = Object.keys(KIT.PLATFORMS || {}).map(function (k) {
@@ -2310,14 +2319,14 @@ function seriesCard(item) {
     + '<span class="tn">' + esc(item.themeZh || "") + "</span>"
     + '<span class="sp"></span>' + tierBadge(r.plate.rights) + "</div>"
     + '<div class="sw" style="background:' + swatchOf(r.plate) + '"></div>'
-    + '<div class="sb">' + esc(clip(tags.join("，"), 190)) + "</div>"
+    + '<div class="sb">' + esc(clip(tagJoin(tags, S.plat), 190)) + "</div>"
     + '<div class="sf"><span class="badge">' + esc(r.mode.zh) + "</span>"
     + '<span style="font:10px var(--mono);color:var(--ink3)">' + esc(item.themeId) + "</span>"
     + '<span style="flex:1"></span>'
     + (t && (r.plate.rights === "R2" || r.plate.rights === "R3")
        ? '<span class="sdup">需改写</span>' : "")
     + '<button class="btn k" data-act="pick" data-num="' + esc(r.plate.num) + '">选中</button>'
-    + '<button class="btn p" data-act="copy" data-cp="' + esc(tags.join("，"))
+    + '<button class="btn p" data-act="copy" data-cp="' + esc(tagJoin(tags, S.plat))
     + '" title="只复制正面词。负面词在上方「一键复制全部」里逐组给出">复制</button>'
     + "</div></div>";
 }
@@ -2477,14 +2486,14 @@ function rollCard(r, i) {
     + '<span style="flex:1"></span>'
     + '<span style="font:10px var(--mono);color:var(--ink3)">seed ' + esc(r.seed) + "</span></div>"
     + (res && res.ok ? '<div class="sw" style="background:' + swatchOf(res.plate) + '"></div>'
-      + '<div class="sb">' + esc(clip(tags.join("，"), 170)) + "</div>" : "")
+      + '<div class="sb">' + esc(clip(tagJoin(tags, S.plat), 170)) + "</div>" : "")
     + '<div class="sf">'
     + (r.semanticBlocked
         ? '<span class="sdup" title="被语义护栏挡掉的候选数">挡 ' + r.semanticBlocked + "</span>" : "")
     + '<button class="btn k" data-act="use" data-num="' + esc((r.picked.plate || {}).id || "")
     + '" data-theme="' + esc(th.id || "") + '" data-mode="' + esc(mid)
     + '" data-medium="' + esc(mid2) + '">用这组</button>'
-    + '<button class="btn p" data-act="copy" data-cp="' + esc(tags.join("，"))
+    + '<button class="btn p" data-act="copy" data-cp="' + esc(tagJoin(tags, S.plat))
     + '" title="只复制正面词。负面词在「一键复制全部」里逐组给出">复制</button>'
     /* 这一组的负面词不能用编号去现算：那个算的是全局 S.theme/S.mode，
        而这一组的主题与模式是它自己抽到的。错配最典型的后果是
@@ -2545,7 +2554,7 @@ function copyAllRolls() {
   R.rolls.forEach(function (r, i) {
     var res = r.result || {};
     var tags = (res.tags && res.tags[S.plat]) || [];
-    var body = (S.plat === "nl") ? (res.nl || "") : tags.join("，");
+    var body = (S.plat === "nl") ? (res.nl || "") : tagJoin(tags, S.plat);
     lines.push("— " + (i + 1) + "　" + ((r.picked.plate || {}).id || "")
       + " " + ((r.picked.plate || {}).zh || "")
       + " × " + ((r.picked.theme || {}).id || "") + " " + ((r.picked.theme || {}).zh || "")
@@ -2909,7 +2918,7 @@ function renderCustom() {
    换模型时对着这两样调半天。 */
 function customBody(r) {
   var tags = (r.tags && r.tags[S.plat]) || [];
-  var body = (S.plat === "nl") ? r.nl : tags.join("，");
+  var body = (S.plat === "nl") ? r.nl : tagJoin(tags, S.plat);
   var add = [];
   if (S.cAppend && S.cText.trim()) add.push(S.cText.trim());
   var ra = ratioOf(S.cRatio);
@@ -2919,7 +2928,9 @@ function customBody(r) {
     else add.push(ra.word);
   }
   if (!add.length) return body;
-  return body + (S.plat === "mj" ? " " : "，") + add.join(S.plat === "mj" ? " " : "，");
+  /* 分隔符跟平台语言走：gpt/nl 中文全角，mj 空格，sd/flux 英文半角 */
+  var sep = (S.plat === "gpt" || S.plat === "nl") ? "，" : (S.plat === "mj" ? " " : ", ");
+  return body + sep + add.join(sep);
 }
 function customOutHTML() {
   if (!S.cNum) {
@@ -3061,7 +3072,7 @@ function runChecks() {
   A.forEach(function (p) {
     if (!p.namedRef) return;
     var r = KIT.compose(DB, p.num, { themeId: (DB.THEMES[0] || {}).num, mode: "plain" });
-    var s = ((r.tags && r.tags.sd) || []).join("，") + " " + (r.nl || "");
+    var s = ((r.tags && r.tags.sd) || []).join(", ") + " " + (r.nl || "");
     if (s.indexOf(p.namedRef) >= 0) leak.push(p.num);
   });
   out.push({
@@ -3089,15 +3100,21 @@ function runChecks() {
      在界面上的表现只是「点了没反应」—— 而这种失败不会报错，
      只会让人以为这个编号就是这样。只能靠逐条跑才看得见。 */
   var cbad = [], cneg0 = [], cscene = [];
+  /* SD/MJ/FLUX 出英文词面 —— 自检必须按各平台自己的语言找证据 */
+  var enSide = S.plat !== "gpt" && S.plat !== "nl";
   A.forEach(function (p) {
     var r = KIT.compose(DB, p.num, { themeId: S.theme, mode: S.mode, medium: S.medium });
     if (!r.ok) { cbad.push(p.num + " 配不出来"); return; }
-    var s = ((r.tags && r.tags[S.plat]) || []).join("，");
+    var s = ((r.tags && r.tags[S.plat]) || []).join(enSide ? ", " : "，");
     if (!s) { cbad.push(p.num + " 复制出空串"); return; }
     if (s.length < 60) { cbad.push(p.num + " 只有 " + s.length + " 字"); return; }
-    var bone = String(((p.faces || {}).bone || {}).c || "");
-    if (bone && s.indexOf(bone.slice(0, 6)) < 0) cbad.push(p.num + " 身份层没进词");
-    if (!(r.faces && r.faces.scene && r.faces.scene.c)) cscene.push(p.num);
+    var boneZh = String(((p.faces || {}).bone || {}).c || "");
+    var boneEn = String(((p.faces || {}).bone || {}).t || "");
+    var bone = enSide ? (boneEn || boneZh) : boneZh;
+    if (bone && s.indexOf(bone.slice(0, enSide ? 14 : 6)) < 0) cbad.push(p.num + " 身份层没进词");
+    /* 无主题时场景留空是有意的人像用法，不算缺；肖像模式本来就清场景 */
+    if (S.theme && S.mode !== "portrait"
+      && !(r.faces && r.faces.scene && r.faces.scene.c)) cscene.push(p.num);
     if (!(r.neg || []).length) cneg0.push(p.num);
   });
   out.push({

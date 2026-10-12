@@ -206,6 +206,10 @@ var ALBUMKIT = (function () {
        会像「默认设置」，一眼就是没设计过。 */
     _AC.ALBUM_FACES.forEach(function (f) {
       if (f.group === "identity") return;
+      /* 肖像模式承诺「只有人，没有场景与道具」—— 场景面必须真的不出词，
+         否则正面词里的场景与负面词里的「场景元素」自相矛盾。
+         这里整面跳过（不算 missing，肖像本来就无场景）。 */
+      if (f.k === "scene" && mode.k === "portrait") return;
       var v = (p.faces || {})[f.k];
       var overridden = false;
 
@@ -232,15 +236,15 @@ var ALBUMKIT = (function () {
       if (!overridden && th && th.faces && th.faces[f.k]) {
         out.faces[f.k] = {
           c: stripNames(th.faces[f.k].c || th.faces[f.k], th),
-          t: th.faces[f.k].t || "", from: "主题" + (th.num || ""), locked: false
+          /* 主题面的英文（facesEn）跟随同键 —— 英文方言要用；
+             没有 facesEn 的主题回退中文，界面能看到哪段还是中文 */
+          t: (th.facesEn || {})[f.k] || "",
+          from: "主题" + (th.num || ""), locked: false
         };
         overridden = true;
       } else if (f.mutable === true && !opt.themeId) {
-        /* 无主题时场景留空是正常的（肖像模式本来就不要场景）。
-           这里**不再往 missing 里推** ——
-           紧接着下面那个分支（回退编号，没有则记 missing）已经会记一次，
-           两处都记会让同一个面在 missing 数组里出现两次，
-           界面上就会显示成「有 2 面未填」，而实际只有 1 面。 */
+        /* 无主题时场景留空是正常的（肖像用法本来就不要场景）。
+           下面的回退分支会为此跳过 missing 登记 —— 不再重复计数。 */
       }
 
       /* 主题没覆盖就用编号里的 */
@@ -248,7 +252,10 @@ var ALBUMKIT = (function () {
         if (v) {
           out.faces[f.k] = { c: stripNames(v.c || v, p), t: v.t || "",
                              from: "编号", locked: false };
-        } else {
+        } else if (!(f.k === "scene" && !opt.themeId)) {
+          /* 场景面 + 无主题 = 有意的留空（人像用法），不是「没设计过」。
+             之前的实现在这里照记 missing，导致每次无主题出词都弹
+             「有 1 面未填：场景」的误导警告 —— 与上面注释宣称的行为相反。 */
           out.missing.push({ face: f.k, zh: f.zh });
         }
       }
@@ -256,15 +263,22 @@ var ALBUMKIT = (function () {
 
     /* ---- 第三步：光影与镜头。它们不属于任何一层，是画法 ---- */
     /* 为什么单列：这两面既不随编号也不随主题，是纯画法。
-       它们来自编号的 light/camera 字段。 */
-    if (p.light) out.loose.push({ c: stripNames(p.light, p), from: "光影" });
-    if (p.camera) out.loose.push({ c: stripNames(p.camera, p), from: "镜头" });
+       它们来自编号的 light/camera 字段；英文对照在 lightEn/cameraEn
+       （英文方言要用，缺翻译时回退中文，界面可见）。 */
+    if (p.light) out.loose.push({ c: stripNames(p.light, p),
+      en: p.lightEn ? stripNames(p.lightEn, p) : "", from: "光影" });
+    if (p.camera) out.loose.push({ c: stripNames(p.camera, p),
+      en: p.cameraEn ? stripNames(p.cameraEn, p) : "", from: "镜头" });
 
     /* ---- 第四步：主题文本 ---- */
     var themeText = opt.themeText || "";
-    if (opt.themeId && !themeText) {
+    var themeEn = "";
+    if (opt.themeId) {
       var t2 = themeOf(opt.themeId);
-      if (t2) themeText = t2.text || t2.zh || "";
+      if (t2) {
+        if (!themeText) themeText = t2.text || t2.zh || "";
+        themeEn = t2.en || "";
+      }
     }
     out.theme = themeText;
 
@@ -272,12 +286,16 @@ var ALBUMKIT = (function () {
        这个分支是「双模式」的全部差异所在 —— */
     if (mode.k === "graphic" || mode.k === "poster") {
       if (themeText) {
+        /* 引号里是「要印的字」，保持原文 —— 印在图上的就是用户给的这句 */
         out.loose.push({ c: "画面中排印这段文字：「" + themeText + "」，字为画面主体之一",
-                         from: "图文模式" });
+          en: 'Render this exact text in the image: "' + themeText
+            + '" — the text is a primary subject of the composition',
+          from: "图文模式" });
       }
       if (mode.k === "poster") {
         out.loose.push({ c: "海报版式：文字占据画面主要面积，图像作为背景层",
-                         from: "海报模式" });
+          en: "Poster layout: typography dominates the frame, imagery serves as the background layer",
+          from: "海报模式" });
       }
     }
 
@@ -307,19 +325,26 @@ var ALBUMKIT = (function () {
     out.medium = med;
     out.mediumCombo = mCombo;
 
-    /* ---- 第五步：拼装 ---- */
-    var texts = [], weights = [];
+    /* ---- 第五步：拼装 ----
+       双语并行：texts 是中文（自然语言 / GPT 用），
+       textsEn 是英文（SD / MJ / FLUX 用 —— 三个都是英文训练的模型，
+       中文词面效果打折；库里每面本就备着英文 t，此前从未接进词面）。
+       某段缺英文时回退中文 —— 宁可混一段，不许丢信息。 */
+    var texts = [], textsEn = [], weights = [];
     /* 门类的媒介词。权重低于身份层、高于场景 ——
        它决定这张图「像什么」，但不该压过「她是谁」。 */
-    if (med && med.en) { texts.push(med.en); weights.push(1.05); }
+    if (med && med.en) { texts.push(med.en); textsEn.push(med.en); weights.push(1.05); }
     _AC.ALBUM_FACES.forEach(function (f) {
       var x = out.faces[f.k];
       if (!x || !x.c) return;
       texts.push(x.c);
+      textsEn.push(x.t || x.c);
       /* 身份层权重更高：它是这个编号的根，不该被内容淹没 */
       weights.push(f.group === "identity" ? 1.15 : 1.0);
     });
-    out.loose.forEach(function (x) { texts.push(x.c); weights.push(0.85); });
+    out.loose.forEach(function (x) {
+      texts.push(x.c); textsEn.push(x.en || x.c); weights.push(0.85);
+    });
 
     /* 主题文本本身也进画面描述（纯图模式）。
        为什么要显式写「画面内容」而不是让主题当提示词前缀：
@@ -328,13 +353,18 @@ var ALBUMKIT = (function () {
        写成「画面内容：…」是把它当语义而不是当文本。 */
     if (themeText && mode.k === "plain") {
       texts.push("画面内容：" + themeText);
+      textsEn.push(themeEn || ("scene: " + themeText));
       weights.push(1.0);
     }
 
     out.texts = texts;
+    out.textsEn = textsEn;
     out.weights = weights;
+    out.tagsLang = {};
     Object.keys(PLATFORMS).forEach(function (k) {
-      out.tags[k] = renderTags(texts, weights, k);
+      var zhSide = (k === "nl" || k === "gpt");
+      out.tags[k] = renderTags(zhSide ? texts : textsEn, weights, k);
+      out.tagsLang[k] = zhSide ? "zh" : "en";
     });
 
     /* 负面词：门类负 + 模式负 + 全局负 + 条目自带护栏
@@ -347,7 +377,17 @@ var ALBUMKIT = (function () {
       .concat(mode.neg || [])
       .concat(db.DEFAULT_NEG || [])
       .concat(p.guard || [])
-      .map(function (x) { return stripNames(x, p); }));
+      .map(function (x) { return stripNames(x, p); }))
+      /* 模式对负面词的修正（只剔确切的词，不做模糊匹配）：
+         ① 图文/海报的正面词要求「排印文字」，全局兜底的「文字」在这里
+            与它正面相撞 —— 提示词一边要一边压，文字要么不出要么乱码。
+         ② 肖像模式已清掉场景面，但妆造面里的道具短语（如「手里一杯外带咖啡」）
+            无法保证剥净，「道具」这条负面词压不了它，只剩自相矛盾。 */
+      .filter(function (w) {
+        if ((mode.k === "graphic" || mode.k === "poster") && w === "文字") return false;
+        if (mode.k === "portrait" && w === "道具") return false;
+        return true;
+      });
 
     /* 自然语言正文：按面分段，身份层排前面 */
     var nl = [];
@@ -437,7 +477,11 @@ var ALBUMKIT = (function () {
       var w = weights[i] == null ? 1 : weights[i];
       if (p.kind === "plain") return t;
       if (p.kind === "colon") {
-        if (w <= 1) return t;
+        /* 阈值 1.1 而不是 1：门类媒介词 1.05 在 round(w*2) 下与身份层同得 ::2，
+           六级权重层级塌成一级（实测 6 段全 ::2）。
+           媒介词只比 1 高一点，MJ 里不加权更接近本意 —— 它决定「像什么」，
+           但不该与「她是谁」同级。 */
+        if (w <= 1.1) return t;
         return t + "::" + Math.round(w * 2);
       }
       if (w <= 0) return "(" + t + ":0.8)";

@@ -1,0 +1,113 @@
+/* ============================================================
+ * themes-en.js —— 主题面的英文对照（facesEn）
+ * ============================================================
+ * 主题条目的 faces（妆造/场景/发型的中文）在 themes.js；
+ * 英文方言（SD / MJ / FLUX）出词时需要同键的英文。
+ * facesEn 与 faces 同键同序 —— 改了 faces 必须同步改这里，
+ * 体检（check_album）会按键对拍。
+ * ============================================================ */
+if (typeof module !== "undefined" && module.exports) {
+  var _TE = require("./data-core.js");
+  var THEMES_EN = _TE.THEMES;
+}
+
+var FACES_EN = {
+  "TH-001": { dress: "Beige trench coat over a white shirt",
+              scene: "Morning subway car, blurred crowd, window reflecting her profile" },
+  "TH-002": { dress: "Dark blazer over a knit cardigan, sleeves pushed up",
+              scene: "Blinds light falling on the desk, people moving in the distance, pale workstation partitions" },
+  "TH-003": { dress: "Loose knit sweater, sleeves naturally stacked",
+              scene: "Wooden table in a small cafe, slanting sun through the side window, blurred greenery in the background" },
+  "TH-004": { dress: "Waterproof trench coat with rain sheen",
+              scene: "Rainy street under an awning, wet ground reflecting neon and streetlights, clear rain streaks" },
+  "TH-005": { dress: "Corduroy jacket, loose trousers",
+              scene: "Narrow aisle between tall shelves of an old bookstore, ladder against the shelf, light falling from high windows" },
+  "TH-006": { hair: "High bun with a plain silver pin, loose strands at the temples",
+              dress: "Plain long robe with wide drooping sleeves",
+              scene: "Old stage, red curtains hanging on both sides, worn wooden boards underfoot" },
+  "TH-007": { dress: "Paint-stained work shirt, sleeves rolled up",
+              scene: "Attic studio, dust motes in the slanted light shaft from the high window, canvases and paint piled on the floor" },
+  "TH-008": { dress: "Elegant cross-collar robe",
+              scene: "Wooden window side, afternoon light slanting across the open book, sparse furnishings" },
+  "TH-009": { hair: "Voluminous short hair, ends slightly curled",
+              dress: "1980s padded-shoulder blazer, strong shoulder line",
+              scene: "Old-fashioned interior, hard window-pane shadows, film grain and slight fading" },
+  "TH-010": { dress: "Loose smock, cuffs grey with pencil dust",
+              scene: "Art classroom, model platform in the background, slanted window light, easels scattered" },
+  "TH-011": { dress: "Linen long dress lifted by the sea wind",
+              scene: "Seaside at dusk, reef rocks, distant horizon, sky grading from orange-red to deep blue" },
+  "TH-012": { dress: "Heavy cotton jacket, backpack",
+              scene: "Dirt forest path, dappled light on the ground and shoulders, straight tree trunks" },
+  "TH-013": { hair: "Snow grains settled in dark hair",
+              dress: "Thick down jacket, dark scarf",
+              scene: "Snow-covered ground, pine branches bent with snow, crisp cold air" },
+  "TH-014": { dress: "Light loose robe, headscarf wrapped",
+              scene: "Noon desert, intense top light, sharp dune ridges, heat haze in the distance" },
+  "TH-015": { dress: "Dark cotton-linen robe, hem still wet",
+              scene: "Courtyard after rain, reflective ground, dripping eaves, lotus leaves in the pond" },
+  "TH-016": { hair: "Long hair scattered by the wind",
+              dress: "Windproof jacket zipped to the collar",
+              scene: "Mountain-top rocks, surging sea of clouds below, distant peaks faint" },
+  "TH-017": { dress: "Black lawyer's robe, hair tied back",
+              scene: "Courtroom interior, wooden high tables, overhead lighting" },
+  "TH-018": { hair: "Surgical cap covering all hair",
+              dress: "Scrubs and mask, only the eyes visible",
+              scene: "Operating room, cold white surgical lamp, orderly instruments" },
+  "TH-019": { hair: "Helmet pressing down the hair",
+              dress: "Firefighting suit and helmet, reflective stripes",
+              scene: "Fire scene, wreckage and thick smoke, orange flames, strong flashlight beams at night" },
+  "TH-020": { hair: "Hair tucked fully into a lab cap",
+              dress: "White lab coat, splash goggles pushed up on the forehead",
+              scene: "Laboratory, cold white fluorescent light, steel counters, blinking instrument lights" },
+  "TH-021": { dress: "Tailored suit, small pin on the chest",
+              scene: "Lecture hall, projection screen, faint lectern top light" },
+  "TH-022": { hair: "Tied up under a chef's hat",
+              dress: "Double-breasted chef jacket, sleeves rolled to the elbow",
+              scene: "Restaurant kitchen, stainless stoves with open flame, steam in the air" },
+  "TH-023": { hair: "One side shaved short, long on the other, metal at the interface",
+              dress: "Functional jacket, raised collar, external device at the shoulder",
+              scene: "Neon rainy alley, sign reflections on wet ground, steam venting from pipes" },
+  "TH-024": { dress: "Flight jacket, harness straps at the shoulders",
+              scene: "Instrument panels and holographic projections lit up all around, distant starfield through the porthole" },
+  "TH-025": { dress: "Dark apprentice robe with waist tie, crest on the cuffs",
+              scene: "Between tall shelves of the magic academy, a floating book, dust drifting in light shafts" },
+  "TH-026": { hair: "Curled hair pinned up, loose strands",
+              dress: "Leather workwear and wrist guards, brass buckles at the shoulder",
+              scene: "Steam workshop, brass pipes and gears, warm orange gaslight" },
+  "TH-027": { dress: "Fitted diving suit, oxygen tube at the shoulder",
+              scene: "Stone door and reliefs, particles suspended in the water, a collapsed colonnade in the distance" },
+  "TH-028": { hair: "Pinned up with red hair ornaments",
+              dress: "Red mandarin-collar top with gold-thread patterns",
+              scene: "New Year setting, red lanterns and gold decorations, drifting snow" },
+  "TH-029": { hair: "Low bun with small white flowers",
+              dress: "White wedding dress, long veil",
+              scene: "Outdoor wedding arch, backlight, falling petals, blurred guests" },
+  "TH-030": { dress: "Dark graduation gown with side panels",
+              scene: "Graduation lawn, caps in the air, cheering blurred crowd behind" },
+  "TH-031": { hair: "Headdress on, long pheasant feathers hanging at both sides",
+              dress: "Opera costume already on, embroidery glinting under the lights",
+              scene: "Backstage mirror, warm bulbs on both sides, headdress boxes and grease paint on the table" },
+  "TH-032": { dress: "All-black formal wear, thin black gloves",
+              scene: "Indoor memorial setting, white flowers and black gauze, dim solemn light" },
+  "TH-033": { dress: "The same coat aging from left to right",
+              scene: "Single background, left-to-right progression, light brightest at the left and dimmest at the right" },
+  "TH-034": { dress: "Intact clothing, only the face fractured",
+              scene: "Pure black background, glinting shard edges" },
+  "TH-035": { dress: "Long garment with the hem soaked in water",
+              scene: "Edge of shallow water, clear reflection, fine ripples in a light breeze" },
+  "TH-036": { dress: "Translucent clothing, blurred edges",
+              scene: "Pure white background, the figure's edges dissolving" },
+  "TH-037": { dress: "Silk gown, shoulder and neckline fully exposed",
+              scene: "Abstract background color blocks, light refracted through glass, negative space at the bottom" },
+  "TH-038": { dress: "Pure white bathrobe, shoulders bare",
+              scene: "Plain soft-light background, a few water droplets, negative space at the bottom" },
+  "TH-039": { dress: "Dark low-cut gown, shoulders and neck only",
+              scene: "Dark background, jewelry glinting like stars, shallow depth of field" },
+  "TH-040": { dress: "Plain minimal top, no brand logos",
+              scene: "Dark tech background, rim light tracing the product outline" }
+};
+
+THEMES_EN.forEach(function (t) {
+  var e = FACES_EN[t.num];
+  if (e) t.facesEn = e;
+});

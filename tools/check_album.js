@@ -495,6 +495,23 @@ onDisk.forEach(function (nm) {
   }
 });
 
+/* ---------- 英文对照：SD/MJ/FLUX 英文词面的全部原料 ----------
+   英文词面由 编号面 .t / 主题 .en / 主题 facesEn / 光影 lightEn / 镜头 cameraEn 组成。
+   任何一块缺了，compose 会静默回退中文 —— 界面看不出缺，
+   只有把词面贴进英文模型才发现混段。所以覆盖必须在这里对拍，缺一条就是错。 */
+var enMissL = db.ALBUM.filter(function (p) { return !p.lightEn; }).map(function (p) { return p.num; });
+var enMissC = db.ALBUM.filter(function (p) { return !p.cameraEn; }).map(function (p) { return p.num; });
+if (enMissL.length) E("光影英文对照缺 " + enMissL.length + " 条：" + enMissL.slice(0, 6).join("、")
+  + " —— 补 assets/light-camera-en.js，英文方言会回退中文");
+if (enMissC.length) E("镜头英文对照缺 " + enMissC.length + " 条：" + enMissC.slice(0, 6).join("、")
+  + " —— 补 assets/light-camera-en.js");
+db.THEMES.forEach(function (t) {
+  if (!t.en) E(t.num + " 缺主题英文名（en 字段）—— 英文方言的主题句会回退中文");
+  var miss = Object.keys(t.faces || {}).filter(function (k) { return !((t.facesEn || {})[k]); });
+  if (miss.length) E(t.num + " 的 facesEn 缺键：" + miss.join("、")
+    + " —— 改了 faces 必须同步 assets/themes-en.js");
+});
+
 /* ---------- 9. 归类系统性 ----------
    这一组查的不是「字段填没填」，是**归类的编排还在不在**。
 

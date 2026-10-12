@@ -16,6 +16,7 @@ var ORDER = [
   "album-kit.js",
   "plates-a.js", "plates-b.js", "plates-c.js", "plates-d.js",
   "themes.js", "modes.js", "mediums.js",
+  "themes-en.js", "light-camera-en.js",
   "gacha.js", "rights.js",
   "provenance.js", "models.js"
 ];

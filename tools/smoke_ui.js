@@ -167,8 +167,9 @@ if (!jsdom) {
     group("A0 默认值");
     T("默认平台是 GPT", UI.S.plat === "gpt", UI.S.plat);
     T("默认模式是纯图", UI.S.mode === "plain", UI.S.mode);
-    T("默认选了编号与主题", !!UI.S.num && !!UI.S.theme,
-      (UI.S.num || "无") + " / " + (UI.S.theme || "无"));
+    T("默认选了编号、主题默认不挂", !!UI.S.num && UI.S.theme === null,
+      (UI.S.num || "无") + " / " + (UI.S.theme || "无")
+      + "（主题默认空是有意的：早先默认 TH-001，不换轴时每条词面都带地铁+咖啡）");
   }
 
   function $(s) { return doc.querySelector(s); }
@@ -1197,11 +1198,16 @@ T("written 档徽章带「未验证」后缀",
     if (!copiedVal) { gshort.push(num + " 啥也没复制出来"); return; }
     if (copiedVal !== expect) { gbad.push(num + " 复制内容与现算不一致"); return; }
     if (copiedVal.length < 60) { gshort.push(num + " 只有 " + copiedVal.length + " 字"); return; }
-    /* 身份层必须在：这是「复制的是这条编号」最硬的证据 */
-    var bone = String(((p.faces || {}).bone || {}).c || (p.faces || {}).bone || "");
-    if (bone && copiedVal.indexOf(bone.slice(0, 6)) < 0) gbad.push(num + " 词面里没有它的骨相面");
-    /* 场景面必须在：主题带进来了才完整 */
-    if (copiedVal.indexOf("，(") < 0 && UI.S.plat !== "nl") gshort.push(num + " 疑似没拼上主题层");
+    /* 身份层必须在：这是「复制的是这条编号」最硬的证据。
+       SD/MJ/FLUX 现在是英文词面 —— 按平台语言找证据（编号面 560/560 有英文 t） */
+    var enSide = UI.S.plat === "sd" || UI.S.plat === "mj" || UI.S.plat === "flux";
+    var boneZh = String(((p.faces || {}).bone || {}).c || "");
+    var boneEn = String(((p.faces || {}).bone || {}).t || "");
+    var bone = enSide ? (boneEn || boneZh) : boneZh;
+    if (bone && copiedVal.indexOf(bone.slice(0, enSide ? 14 : 6)) < 0) gbad.push(num + " 词面里没有它的骨相面");
+    /* 场景面必须在：主题带进来了才完整（英文段间的分隔是「, (」，中文是「，(」） */
+    var segSep = enSide ? /, \(/ : /，\(/;
+    if (!segSep.test(copiedVal) && UI.S.plat !== "nl") gshort.push(num + " 疑似没拼上主题层");
     /* 真人名不能漏出去 */
     var named = p.namedRef || null;
     if (named && copiedVal.indexOf(named) >= 0) gname.push(num + " 漏出真名：" + named);
@@ -1635,9 +1641,11 @@ function runCopyHonesty(done) {
         T("　摊开的全文 = AL-002 现算词面", taVal === exp,
           taVal.length + " 字 vs 引擎 " + String(exp).length + " 字");
         var bone = ((p2 || {}).faces || {}).bone || {};
+        var enSide2 = ["sd", "mj", "flux"].indexOf(UI.S.plat) >= 0;
+        var boneProbe = enSide2 ? (bone.t || bone.c || "") : (bone.c || "");
         T("　摊开的全文带着 AL-002 的骨相面",
-          !!bone.c && taVal.indexOf(String(bone.c).slice(0, 6)) >= 0,
-          String(bone.c).slice(0, 18));
+          !!boneProbe && taVal.indexOf(String(boneProbe).slice(0, enSide2 ? 14 : 6)) >= 0,
+          String(boneProbe).slice(0, 18));
         T("　摊开的框里说明了为什么失败",
           /拒绝/.test(doc.getElementById("cmWhy").textContent || ""));
       }
