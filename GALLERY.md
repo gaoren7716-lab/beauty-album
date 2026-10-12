@@ -26,17 +26,17 @@
 
 |   |   |   |   |
 |---|---|---|---|
-| <img src="dist/swatches/AL-013.svg" width="150"><br>**AL-013** 琥珀眼 | <img src="dist/swatches/AL-014.svg" width="150"><br>**AL-014** 软缎 | <img src="dist/swatches/AL-015.svg" width="150"><br>**AL-015** 秋叶 | <img src="dist/swatches/AL-016.svg" width="150"><br>**AL-016** 晚祷 |
+| <img src="examples/AL-013.png" width="150"><br>**AL-013** 琥珀眼 ⏳ | <img src="examples/AL-014.png" width="150"><br>**AL-014** 软缎 ⏳ | <img src="examples/AL-015.png" width="150"><br>**AL-015** 秋叶 ⏳ | <img src="examples/AL-016.png" width="150"><br>**AL-016** 晚祷 ⏳ |
 
 ### 中性硬朗 —— 骨相横向展开、肤色中性、稳定不动（017–024）
 
 |   |   |   |   |
 |---|---|---|---|
-| <img src="dist/swatches/AL-017.svg" width="150"><br>**AL-017** 石中 | <img src="dist/swatches/AL-018.svg" width="150"><br>**AL-018** 长风 | <img src="dist/swatches/AL-019.svg" width="150"><br>**AL-019** 素面 | <img src="dist/swatches/AL-020.svg" width="150"><br>**AL-020** 棱镜 |
+| <img src="examples/AL-017.png" width="150"><br>**AL-017** 石中 ⏳ | <img src="examples/AL-018.png" width="150"><br>**AL-018** 长风 ⏳ | <img src="examples/AL-019.png" width="150"><br>**AL-019** 素面 ⏳ | <img src="examples/AL-020.png" width="150"><br>**AL-020** 棱镜 ⏳ |
 
 |   |   |   |   |
 |---|---|---|---|
-| <img src="dist/swatches/AL-021.svg" width="150"><br>**AL-021** 灰阶 | <img src="dist/swatches/AL-022.svg" width="150"><br>**AL-022** 铁线 | <img src="dist/swatches/AL-023.svg" width="150"><br>**AL-023** 疏星 | <img src="dist/swatches/AL-024.svg" width="150"><br>**AL-024** 白昼 |
+| <img src="examples/AL-021.png" width="150"><br>**AL-021** 灰阶 ⏳ | <img src="examples/AL-022.png" width="150"><br>**AL-022** 铁线 ⏳ | <img src="examples/AL-023.png" width="150"><br>**AL-023** 疏星 ⏳ | <img src="examples/AL-024.png" width="150"><br>**AL-024** 白昼 ⏳ |
 
 ### 少年感 —— 轮廓未长开、肤质清透、神情未设防（025–032）
 

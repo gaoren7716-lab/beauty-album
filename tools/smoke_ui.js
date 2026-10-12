@@ -765,10 +765,19 @@ T("written 档徽章带「未验证」后缀",
   click('[data-act="tforce"]');
   T("强制换模式可开", UI.S.gForce === true);
   click('[data-act="roll"]');
-  T("强制换模式后抽到的模式不全是纯图", (function () {
-    var ms = UI.S.gRolls.rolls.map(function (r) { return r.picked.mode.id || r.picked.mode.k; });
-    return ms.some(function (m) { return m && m !== "plain"; });
-  })());
+  /* forceMode 的语义是「模式轴进全候选随机池」，不是「保证抽中非 plain」。
+     4 组全 plain 的概率是 (1/4)^4 = 1/256，单抽会偶发假红（真撞上过一次）。
+     所以这里多抽几轮：只要任何一轮出现非 plain，就证明模式轴真的在随机池里。 */
+  var forceHit = false;
+  for (var fi = 0; fi < 12 && !forceHit; fi++) {
+    click('[data-act="roll"]');
+    var fms = (UI.S.gRolls.rolls || []).map(function (r) {
+      return (r.picked.mode || {}).id || (r.picked.mode || {}).k;
+    });
+    forceHit = fms.some(function (m) { return m && m !== "plain"; });
+  }
+  T("强制换模式后抽到的模式不全是纯图", forceHit,
+    "12 轮内出现非 plain=" + forceHit);
   click('[data-act="tforce"]');
 
   click('[data-act="gcat"][data-v="古典"]');

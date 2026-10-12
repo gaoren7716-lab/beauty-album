@@ -383,6 +383,8 @@ ALBUM.push(
   },
   read:"这一号的重心在眼睛。"
     + "换成浅色眼睛时优先换 eye 面，别动其他面 —— 眼睛变了人还是这个人。",
+  test:{ model:"待核实", pic:"examples/AL-013.png", size:"832x1248",
+    note:"暖侧光下琥珀色虹膜与颊部红润对得上；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-014", cat:"暖调柔和", status:"written",
@@ -408,6 +410,8 @@ ALBUM.push(
   },
   read:"这一号是「无攻击性」的完整方案。"
     + "它几乎不能配强冲突主题 —— 要冲突请换 AL-005 或 AL-008。",
+  test:{ model:"待核实", pic:"examples/AL-014.png", size:"832x1248",
+    note:"柔光逆光轮廓光晕与水光肌对得上；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-015", cat:"暖调柔和", status:"written",
@@ -433,6 +437,8 @@ ALBUM.push(
   },
   read:"这一号的鲜活感来自「红润」与「短促的发尾卷」。"
     + "给它加冷调正装会立刻变成另一个人。",
+  test:{ model:"待核实", pic:"examples/AL-015.png", size:"832x1248",
+    note:"低角度暖阳长投影与晒红肤色对得上；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-016", cat:"暖调柔和", status:"written",
@@ -458,6 +464,8 @@ ALBUM.push(
   },
   read:"这一号靠「向内」的气质成立。"
     + "让它直视镜头会丢掉全部特点 —— 这是少数不该改 gaze 的一号。",
+  test:{ model:"待核实", pic:"examples/AL-016.png", size:"832x1248",
+    note:"烛光暖侧照与内收目光对得上；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 /* ============ 017–024 · 中性硬朗 ============ */
@@ -484,6 +492,8 @@ ALBUM.push(
   },
   read:"这一号的中性来自「没有明显的性别指向」，"
     + "但骨相偏硬朗。想更中性就减形体面的力量感，别改骨相。",
+  test:{ model:"待核实", pic:"examples/AL-017.png", size:"832x1248",
+    note:"硬侧光明暗两半与硬朗骨相对得上；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-018", cat:"中性硬朗", status:"written",
@@ -509,6 +519,8 @@ ALBUM.push(
   },
   read:"这一号的「风」是造型的一部分。"
     + "换成室内柔光会丢掉它八成的性格。",
+  test:{ model:"待核实", pic:"examples/AL-018.png", size:"832x1248",
+    note:"阴天散射与荒野风吹感对得上；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-019", cat:"中性硬朗", status:"written",
@@ -534,6 +546,8 @@ ALBUM.push(
   },
   read:"这一号的用途是「压住美化」。"
     + "当你要避免输出过于精修时，用它当基底比减权重更有效。",
+  test:{ model:"待核实", pic:"examples/AL-019.png", size:"832x1248",
+    note:"自然平光与真实肤质对得上；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-020", cat:"中性硬朗", status:"written",
@@ -559,6 +573,8 @@ ALBUM.push(
   },
   read:"这一号靠「冷暖对撞」成立。"
     + "统一成单一光色会让它退化成普通的锐利脸。",
+  test:{ model:"待核实", pic:"examples/AL-020.png", size:"832x1248",
+    note:"冷暖混光与华丽距离感对得上；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-021", cat:"中性硬朗", status:"written",
@@ -585,6 +601,8 @@ ALBUM.push(
   read:"这一号是「退后一步」的设计。"
     + "需要背景或文字成为主体时，用它当底 —— "
     + "它不会跟画面里别的东西抢注意力。",
+  test:{ model:"待核实", pic:"examples/AL-021.png", size:"832x1248",
+    note:"低饱和灰调与平光对得上；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-022", cat:"中性硬朗", status:"written",
@@ -610,6 +628,8 @@ ALBUM.push(
   },
   read:"这一号是「职业感」的通用底。"
     + "换任何行业主题都成立，因为它本身不指向任何行业。",
+  test:{ model:"待核实", pic:"examples/AL-022.png", size:"832x1248",
+    note:"硬光轮廓分界与哑光肤对得上；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-023", cat:"中性硬朗", status:"written",
@@ -635,6 +655,8 @@ ALBUM.push(
   },
   read:"这一号的「暗」是它的结构，不是氛围。"
     + "提高亮度会让人物失去立体感 —— 它靠对比而不是细节成立。",
+  test:{ model:"待核实", pic:"examples/AL-023.png", size:"832x1248",
+    note:"极低照度下眼部微光与疏离感对得上；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-024", cat:"中性硬朗", status:"written",
@@ -660,5 +682,7 @@ ALBUM.push(
   },
   read:"这一号是最安全的一张 —— 几乎不预设情境。"
     + "拿不准用哪一号时从它开始，再往上叠。",
+  test:{ model:"待核实", pic:"examples/AL-024.png", size:"832x1248",
+    note:"明亮顶光偏侧与清朗气质对得上；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] }
 );
