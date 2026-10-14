@@ -737,23 +737,46 @@ T("written 档徽章带「未验证」后缀",
     return r.result && r.result.ok && (r.result.tags.sd || []).length > 3;
   }));
 
-  /* 快选行：抽 1/4/8 组 + 🎲 随机来一张 */
+  /* 快选行：抽 1/4/8 组 + 🎲 随机来一张（骰子放行尾）。
+     顺序也是承诺：用户说「随机来一张放最后」，按钮次序要对得上。 */
+  var quickBtns = Array.prototype.slice.call(
+    doc.querySelectorAll('#main [data-act="gdice"],[data-act="rolln"]'));
   T("快选行四个按钮都在（骰子 + 1/4/8 组）",
     !!doc.querySelector('[data-act="gdice"]')
     && !!doc.querySelector('[data-act="rolln"][data-n="1"]')
     && !!doc.querySelector('[data-act="rolln"][data-n="4"]')
     && !!doc.querySelector('[data-act="rolln"][data-n="8"]'));
+  T("🎲 随机来一张在快选行最后（1/4/8 组之后）",
+    quickBtns.length === 4 && quickBtns[3].getAttribute("data-act") === "gdice",
+    quickBtns.map(function (b) { return b.getAttribute("data-act"); }).join(" → "));
   click('[data-act="rolln"][data-n="4"]');
   T("抽 4 组：张数落状态、结果 4 组",
     UI.S.gN === 4 && !!(UI.S.gRolls && UI.S.gRolls.ok && UI.S.gRolls.rolls.length === 4),
     (UI.S.gRolls && UI.S.gRolls.rolls || []).length + " 组");
-  UI.S.gSeed = "777"; /* 先种一个 seed —— 骰子必须把它清掉，骰子是真随机 */
+
+  /* 🎲 语义已改：从画廊已有实拍图的编号里随机抽一张，不再现凑组合。
+     所以断言基准全换：种了 seed 也不该被清（骰子不走 rollMany，
+     清了反而破坏用户下一步复现）；gN 不该被归 1；gRolls 该被置空；
+     gPicRoll 落在「有 test.pic」的编号集合里。 */
+  UI.S.gSeed = "777"; UI.S.gN = 4;
+  var picNums = UI.DB.ALBUM.filter(function (p) { return p.test && p.test.pic; })
+    .map(function (p) { return p.num; });
   click('[data-act="gdice"]');
-  T("🎲 随机来一张：清 seed、只抽 1 组、结果区有锚点",
-    UI.S.gSeed === "" && UI.S.gN === 1
-    && !!(UI.S.gRolls && UI.S.gRolls.ok && UI.S.gRolls.rolls.length === 1)
-    && !!doc.getElementById("gachaRolls"),
+  T("🎲 随机来一张：不碰 seed 与张数（它不走 rollMany）",
+    UI.S.gSeed === "777" && UI.S.gN === 4,
     "seed=" + UI.S.gSeed + " n=" + UI.S.gN);
+  T("🎲 抽的是有实拍图的编号（不是现凑组合）",
+    !!UI.S.gPicRoll && picNums.indexOf(UI.S.gPicRoll.num) >= 0
+    && UI.S.gPicRoll.total === picNums.length,
+    (UI.S.gPicRoll || {}).num + " · 第 " + ((UI.S.gPicRoll || {}).idx || 0)
+    + "/" + ((UI.S.gPicRoll || {}).total || 0) + " 张");
+  T("🎲 骰子图卡与组合卡互斥（gRolls 置空）", UI.S.gRolls === null);
+  T("🎲 结果区铺出该编号的实拍图（src 对得上）",
+    !!doc.getElementById("gachaRolls")
+    && !!doc.querySelector('#gachaRolls img[src="examples/' + (UI.S.gPicRoll || {}).num + '.png"]'));
+  click('[data-act="rolln"][data-n="1"]');
+  T("抽组合后图卡让位（互斥是双向的）",
+    UI.S.gPicRoll === null && !!(UI.S.gRolls && UI.S.gRolls.ok));
 
   /* 开关：语义护栏 / 强制换模式 / 分类过滤 */
   click('[data-act="tsem"]');
@@ -764,6 +787,11 @@ T("written 档徽章带「未验证」后缀",
 
   click('[data-act="tforce"]');
   T("强制换模式可开", UI.S.gForce === true);
+  /* 这条断言要的是「模式轴真的在随机池里」，必须真随机才有意义。
+     上面种过的 seed 777 会让 12 次 roll 拿到完全相同的结果（rollMany 的
+     seed+i 是确定性的），等于只验了一组。骰子不再清 seed 之后，
+     残留种子比以前更容易流到这里 —— 显式清掉，别依赖上游用例的副作用。 */
+  UI.S.gSeed = "";
   click('[data-act="roll"]');
   /* forceMode 的语义是「模式轴进全候选随机池」，不是「保证抽中非 plain」。
      4 组全 plain 的概率是 (1/4)^4 = 1/256，单抽会偶发假红（真撞上过一次）。
@@ -854,7 +882,7 @@ T("written 档徽章带「未验证」后缀",
      只有「全部重抽」的话，抽十次也碰不到「同一个人换场景」的对比。 */
   group("A5b 抽卡增强");
   UI.go("gacha");
-  UI.S.gN = 8; /* 本组断言写死 8 组 —— 别让前面用例（骰子把 gN 归 1）的状态漏进来 */
+  UI.S.gN = 8; /* 本组断言写死 8 组 —— 别让前面用例（抽 4 组 / 抽 1 组）的状态漏进来 */
   setSeed("4242");
   click('[data-act="roll"]');
   T("一次铺 8 组", UI.S.gN === 8 && UI.S.gRolls.rolls.length === 8,

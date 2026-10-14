@@ -377,6 +377,17 @@ header{background:var(--panel);border-bottom:1px solid var(--line);padding:11px 
 .scard .sf{padding:5px 8px;border-top:1px solid var(--line);display:flex;gap:5px;flex-wrap:wrap;align-items:center}
 .scard .sdup{font:9.5px var(--mono);color:var(--rk-lookalike);border:1px solid #5c452a;background:#2a2118;border-radius:3px;padding:0 4px}
 .tkbox{border:1px solid var(--line);border-radius:7px;background:#12151a;padding:9px;margin-bottom:10px}
+/* ---------- 抽卡页控件放大 ----------
+   这一页的控件是「要反复点」的：点不动、点不准比丑更严重。
+   只放大 .tkbox 内的 —— 画廊 / 精品出图 / 组图共用 .toggle/.fchip/.btn，
+   不动全局，免得一次「放大」把别的页的密度也改了。
+   .toggle 里的 checkbox 本身是 display:none（label 包着），放大胶囊即可。 */
+.tkbox .btn{padding:8px 14px;font-size:13px;min-height:32px}
+.tkbox input[type="text"],.tkbox input[type="number"]{height:32px;font-size:14px;padding:0 10px}
+.tkbox .toggle{padding:8px 14px;font-size:12.5px;min-height:32px}
+.tkbox .fchip{padding:8px 13px;font-size:12.5px;min-height:32px}
+.tkbox .tcard{min-height:58px;padding:10px 12px}
+.tkbox .tcard .tz{font-size:13.5px}
 .tkbox .tl{font:10px/1.6 var(--mono);letter-spacing:1px;color:var(--ink3);margin-bottom:7px}
 .tkstat{display:flex;gap:16px;flex-wrap:wrap;font:11.5px var(--mono);color:var(--ink2)}
 .tkstat div{display:flex;flex-direction:column;gap:1px}
@@ -1069,6 +1080,9 @@ var S = {
   /* 抽卡 */
   gN: 8, gSeed: "", gSemantic: true, gForce: false, gCat: "全部",
   gRolls: null,
+  /* 骰子抽到的实拍图卡：{num, idx, total}。与 gRolls 互斥 ——
+     骰子看一张已有的图，抽 N 组现凑新组合，两种结果不混铺。 */
+  gPicRoll: null,
   /* 抽卡的锁：key = 组下标，value = {plate:true, theme:true, mode:true}
      锁住某一轴后重抽不换它 —— 抽卡的乐趣在「换一个轴看看」，
      而不是每次都整组推翻重来。 */
@@ -2341,17 +2355,19 @@ function renderGacha() {
     + "所以 blocked 数必须给出来：只报总空间会让人以为抽卡范围比实际大得多。</div>"
     + "</div>";
 
-  /* 快选行：最常用的三个组数 + 骰子。
-     骰子是最短路径 —— 不带 seed（真随机）、只抽一张、抽完滚到结果区，
-     「我就想要一张图」的用户点一下就结束。 */
+  /* 快选行：三个组数 + 骰子，骰子放最后。
+     分工必须写在按钮上：「抽 N 组」是现凑新组合（没图，出词用）；
+     骰子是从画廊已有实拍图的编号里随机抽一张（有图，看图 + 拿它的词）。
+     两个动作长得像，不写清楚就会有人点了骰子等新组合出图。 */
   f += '<div class="tkbox"><div class="tl">快速开抽</div><div class="row" style="flex-wrap:wrap">'
-    + '<button class="btn p" data-act="gdice" style="font-size:14px;padding:9px 18px" '
-    + 'title="真随机抽一张，不带 seed，抽完滚到结果">🎲 随机来一张</button>'
     + '<button class="btn" data-act="rolln" data-n="1">抽 1 组</button>'
     + '<button class="btn" data-act="rolln" data-n="4">抽 4 组</button>'
     + '<button class="btn" data-act="rolln" data-n="8">抽 8 组</button>'
+    + '<button class="btn p" data-act="gdice" style="font-size:14px;padding:9px 18px" '
+    + 'title="从画廊已有实拍图的编号里随机抽一张：看图 + 按当前轴现算它的词面；'
+    + '与「抽 N 组」不同，那是现凑新组合">🎲 随机来一张</button>'
     + '<span style="font-size:11px;color:var(--ink3);align-self:center">'
-    + "要指定张数或复现同一组，用下面的 seed 与张数</span>"
+    + "「抽 N 组」现凑新组合；🎲 从已有实拍图里抽一张 · 要指定张数或复现同一组，用下面的 seed 与张数</span>"
     + "</div></div>";
 
   /* 开关 */
@@ -2393,6 +2409,37 @@ function renderGacha() {
           + esc(GACHA.CAT_CLASH[k].join("、")) + "</div>";
       }).join("")
     + "</div>";
+
+  /* 骰子的实拍图卡：与下面的组合卡互斥（gdice 置空 gRolls，doRoll 置空它）。
+     卡上带图、编号信息、按当前轴现算的词面与三个复用按钮 ——
+     「随机来一张」的终点是「拿到这张图的词」，不是「看一张图就没了」。 */
+  if (S.gPicRoll) {
+    var gp = PLATE[S.gPicRoll.num];
+    if (gp) {
+      f += '<div class="tkbox" id="gachaRolls"><div class="tl">🎲 随机来一张 · 画廊实拍 第 '
+        + S.gPicRoll.idx + "/" + S.gPicRoll.total + " 张</div>"
+        + '<div class="row" style="align-items:flex-start;gap:14px;flex-wrap:wrap">'
+        + '<img src="examples/' + esc(gp.num) + '.png" alt="' + esc(gp.num + " " + gp.zh) + '"'
+        + ' style="width:min(240px,100%);border-radius:8px;border:1px solid var(--line);display:block">'
+        + '<div style="flex:1;min-width:230px">'
+        + '<div class="gname"><em>' + esc(gp.num) + "</em>" + esc(gp.zh) + "</div>"
+        + '<div class="gfoot" style="margin:5px 0"><span class="cat">' + esc(gp.cat) + "</span>"
+        + (gp.region ? '<span class="rg">' + esc(gp.region) + "</span>" : "")
+        + '<span class="sp"></span>' + statusBadge(gp) + "</div>"
+        + '<div class="gwhat">' + esc(gcopyNote(gp) || "") + "</div>"
+        + '<div class="gact" style="margin-top:8px">'
+        + '<button class="mini p" data-act="gcopy" data-num="' + esc(gp.num)
+        + '" title="复制正面词：' + esc(gcopyNote(gp) || "") + '">📋 复制提示词</button>'
+        + '<button class="mini neg" data-act="gneg" data-num="' + esc(gp.num)
+        + '" title="复制负面词 —— SD 填 Negative 框，MJ 用 --no，FLUX 一般不用">负面词'
+        + negN(gp) + "</button>"
+        + '<span class="sp"></span>'
+        + '<button class="mini bench" data-act="gbench" data-num="' + esc(gp.num)
+        + '" title="带着当前主题/模式/门类进精品出图细调">精图改用</button>'
+        + '<button class="mini" data-act="gdice" title="再从实拍图里随机抽一张">🎲 再抽一张</button>'
+        + "</div></div></div></div>";
+    }
+  }
 
   if (S.gRolls) {
     var R = S.gRolls;
@@ -3321,6 +3368,7 @@ function doRoll() {
     opt.seed = isNaN(n) ? S.gSeed : n;      /* 非数字也能当种子：mulberry 自己会 |0 */
   }
   S.gRolls = GACHA.rollMany(DB, S.gN, opt);
+  S.gPicRoll = null;   /* 抽组合与骰子图卡互斥：后者只该在点骰子后出现 */
   render();
   if (S.gRolls.ok) toast("抽了 " + S.gRolls.total + " 组 · seed " + S.gRolls.baseSeed);
   else toast("抽卡失败：" + (S.gRolls.why || "未知"));
@@ -3453,15 +3501,26 @@ document.addEventListener("click", function (ev) {
     return;
   }
   if (a === "gdice")  {
-    /* 骰子 = 真随机单抽：清掉 seed（留着会每次抽到同一组）、张数归 1，
-       抽完把结果区滚到眼前 —— 用户点骰子时想要的是「马上给我看一张」 */
-    S.gSeed = "";
-    S.gN = 1;
-    doRoll();
-    var R2 = S.gRolls || {};
-    var pk = (R2.rolls && R2.rolls[0] && R2.rolls[0].picked) || {};
-    toast("🎲 " + ((pk.plate || {}).id || "") + " × " + ((pk.theme || {}).id || "")
-      + " —— 已铺在下方");
+    /* 骰子 = 从画廊已有实拍图的编号里随机抽一张。
+       和「抽 N 组」的分工：抽 N 组现凑新组合（没图，出词用）；
+       骰子翻看已经出好的图（有图，看图 + 按当前轴拿它的词面）。
+       seed 与张数不碰 —— 它们只服务于 roll/rolln，
+       骰子不再走 rollMany，清了用户的 seed 反而破坏他下一步的复现。
+       语义护栏与分类过滤对这些**已经出出来**的图不再适用：
+       它们是既成事实，不该被「现在觉得不合理」的规则挡掉。
+       但分类过滤仍尊重 —— 用户若选了某个类目，就在那个类目的实拍图里抽。 */
+    var picPlates = (DB.ALBUM || []).filter(function (p) { return p.test && p.test.pic; });
+    if (S.gCat !== "全部") {
+      var inCat = picPlates.filter(function (p) { return p.cat === S.gCat; });
+      if (inCat.length) picPlates = inCat;
+    }
+    if (!picPlates.length) { toast("画廊还没有实拍图可抽"); return; }
+    var pick = picPlates[Math.floor(Math.random() * picPlates.length)];
+    S.gRolls = null;   /* 骰子单独看一张图，不和组合卡混铺 */
+    S.gPicRoll = { num: pick.num, idx: picPlates.indexOf(pick) + 1, total: picPlates.length };
+    render();
+    toast("🎲 " + pick.num + " " + pick.zh + " —— 第 " + (picPlates.indexOf(pick) + 1)
+      + "/" + picPlates.length + " 张实拍");
     var box = document.getElementById("gachaRolls");
     /* jsdom 没有 scrollIntoView —— 真浏览器里才滚 */
     if (box && box.scrollIntoView) box.scrollIntoView({ behavior: "smooth", block: "start" });
