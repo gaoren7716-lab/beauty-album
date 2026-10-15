@@ -1,7 +1,7 @@
 # 美人画册 · beauty-album
 
 把「一个完整可复现的人物配方」压成三位编号，像记电话号码一样记住一个形象。
-**80 编号 × 40 主题 × 8 门类 × 4 模式 = 102,400 种组合，× 5 种平台语法 = 512,000 份可直接复制的词面。**
+80 编号 × 40 主题 × 8 门类 × 4 模式，词面现算、一键复制，贴进任意出图模型即用。
 
 ## 在线画廊（推荐）
 
@@ -9,16 +9,14 @@
 
 筛选 · 看八面细节 · 一键复制 · 组图 · 抽卡。离线用：下载本仓库双击 `index.html`（单文件、零依赖、不联网也能跑）。
 
-## 画廊图鉴
+## 80 个编号，全部已配实拍图
 
-全部 80 个编号均有实拍配图（逐张核对入库，AL-001 已实测、其余出图模型待核实）——
-见 **[GALLERY.md](GALLERY.md)**。日后新增编号若没配图，会回落配方色卡
-（颜色由光影/肤质/气质/文化圈现推，张张不同）。
+逐张核对入库，完整 80 张见 **[GALLERY.md](GALLERY.md)**。样张：
 
 | | | | |
 |---|---|---|---|
-| <img src="examples/AL-001.png" width="150"><br>**AL-001** 霜白刀刃 ✅ | <img src="examples/AL-002.png" width="150"><br>**AL-002** 静水 ⏳ | <img src="examples/AL-003.png" width="150"><br>**AL-003** 鹤骨 ⏳ | <img src="examples/AL-004.png" width="150"><br>**AL-004** 夜行 ⏳ |
-| <img src="examples/AL-009.png" width="150"><br>**AL-009** 蜜色圆光 ⏳ | <img src="examples/AL-015.png" width="150"><br>**AL-015** 秋叶 ⏳ | <img src="examples/AL-020.png" width="150"><br>**AL-020** 棱镜 ⏳ | <img src="examples/AL-023.png" width="150"><br>**AL-023** 疏星 ⏳ |
+| <img src="examples/AL-001.png" width="150"><br>**AL-001** 霜白刀刃 | <img src="examples/AL-002.png" width="150"><br>**AL-002** 静水 | <img src="examples/AL-003.png" width="150"><br>**AL-003** 鹤骨 | <img src="examples/AL-004.png" width="150"><br>**AL-004** 夜行 |
+| <img src="examples/AL-009.png" width="150"><br>**AL-009** 蜜色圆光 | <img src="examples/AL-015.png" width="150"><br>**AL-015** 秋叶 | <img src="examples/AL-020.png" width="150"><br>**AL-020** 棱镜 | <img src="examples/AL-023.png" width="150"><br>**AL-023** 疏星 |
 
 ## 怎么用
 
