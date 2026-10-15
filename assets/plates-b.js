@@ -40,6 +40,8 @@ ALBUM.push(
   },
   read:"这一号偏未成年观感。**不要**给它配成人化的妆造或场景内容 —"
     + "少年感一旦被成人元素污染就会变得别扭，而这种别扭很难定位到具体原因。",
+  test:{ model:"待核实", pic:"examples/AL-025.png", size:"1086x1448",
+    note:"柔和顶光下阴影很浅、整体明亮通透，幼态轮廓与小巧肩型对得上；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"], guard:["性感姿态","暴露服装"] },
 
 { num:"AL-026", cat:"少年感", status:"written",
@@ -65,6 +67,8 @@ ALBUM.push(
   },
   read:"这一号的核心是「圆」。给它加锐利的面（方下颌、直眉）会立刻冲突，"
     + "而冲突的表现往往不是「不好看」，是「说不清哪里怪」。",
+  test:{ model:"待核实", pic:"examples/AL-026.png", size:"1024x1536",
+    note:"散射光无方向感、肤质细节柔和，初生绒般的柔和轮廓成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-027", cat:"少年感", status:"written",
@@ -90,6 +94,8 @@ ALBUM.push(
   },
   read:"这一号与 AL-026 的区别在骨相的「窄 vs 圆」。"
     + "想要可爱选 026，想要清爽选 027。",
+  test:{ model:"待核实", pic:"examples/AL-027.png", size:"1024x1536",
+    note:"自然暖日光与浅色春装的明快感成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-028", cat:"少年感", status:"written",
@@ -115,6 +121,8 @@ ALBUM.push(
   },
   read:"这一号是「少年方向的素面版」。"
     + "需要少修饰的少年形象时用它，比 AL-025 更中性。",
+  test:{ model:"待核实", pic:"examples/AL-028.png", size:"1024x1536",
+    note:"均匀柔光低对比与无造型日常穿着对得上；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-029", cat:"少年感", status:"written",
@@ -140,6 +148,8 @@ ALBUM.push(
   },
   read:"这一号偏中性。与 AL-017（中性硬朗）的区别在年龄观感 —"
     + "同样是短发中性，这一号面部更圆润、肩线更窄。",
+  test:{ model:"待核实", pic:"examples/AL-029.png", size:"1024x1536",
+    note:"侧光明暗分界清晰而边缘柔和，短发利落与运动休闲着装成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-030", cat:"少年感", status:"written",
@@ -165,6 +175,8 @@ ALBUM.push(
   },
   read:"这一号是「安静但不温暖」。"
     + "它与 AL-014 的柔和不同 —— 同样是柔，这一号带一点疏离。",
+  test:{ model:"待核实", pic:"examples/AL-030.png", size:"1024x1536",
+    note:"阴天冷平光与带帽外套、双手插袋的檐下感成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-031", cat:"少年感", status:"written",
@@ -190,6 +202,8 @@ ALBUM.push(
   },
   read:"这一号的文艺感来自「不看镜头」。"
     + "强行改 gaze 会让它退化成普通内向人设。",
+  test:{ model:"待核实", pic:"examples/AL-031.png", size:"1024x1536",
+    note:"高窗侧光与木质暖反射、室内深暗部对得上，素色针织衫成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-032", cat:"少年感", status:"written",
@@ -215,6 +229,8 @@ ALBUM.push(
   },
   read:"这一号是纯 Sunny。给它加任何沉重主题都会失配 —— "
     + "强对比题材请换 AL-017 或 AL-018。",
+  test:{ model:"待核实", pic:"examples/AL-032.png", size:"1024x1536",
+    note:"强顶光加反弹光的过曝感与浅色夏装成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 /* ============ 033–040 · 明艳 ============ */
@@ -241,6 +257,8 @@ ALBUM.push(
   },
   read:"这一号靠「高对比 + 高饱和」成立。"
     + "换成低饱和配色会显得灰暗而无力 —— 明艳不是脸的事，是整体对比的事。",
+  test:{ model:"待核实", pic:"examples/AL-033.png", size:"1024x1536",
+    note:"硬光高对比高饱和与正红衣物成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-034", cat:"明艳", status:"written",
@@ -266,6 +284,8 @@ ALBUM.push(
   },
   read:"这一号是「单点强调」的范式：整体压下去，只让唇色突出。"
     + "眼妆加浓就会变成两处重点，反而失效。",
+  test:{ model:"待核实", pic:"examples/AL-034.png", size:"1024x1536",
+    note:"正面柔光均匀受光、唇部高光突出，素色衣物不抢唇；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-035", cat:"明艳", status:"written",
@@ -290,6 +310,8 @@ ALBUM.push(
       c:"宝石色调衣物，饱和度中等偏上" }
   },
   read:"这一号要彩光才成立。单色光下它会退化成普通浓颜。",
+  test:{ model:"待核实", pic:"examples/AL-035.png", size:"1024x1536",
+    note:"彩色混合光的肤面色相分层与宝石色调衣物成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-036", cat:"明艳", status:"written",
@@ -315,6 +337,8 @@ ALBUM.push(
   },
   read:"这一号是全册最「贵」的一号。"
     + "它的完整感依赖全身入镜 —— 裁成特写会显得空洞。",
+  test:{ model:"待核实", pic:"examples/AL-036.png", size:"1024x1536",
+    note:"影棚硬光背景分离清晰与正式礼服的华贵质感成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-037", cat:"明艳", status:"written",
@@ -340,6 +364,8 @@ ALBUM.push(
   },
   read:"这一号靠反射光成立。"
     + "去掉彩色光源会变成普通的深邃眼妆脸。",
+  test:{ model:"待核实", pic:"examples/AL-037.png", size:"1024x1536",
+    note:"多向彩色灯光的肤面反射与深色亮面衣物成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-038", cat:"明艳", status:"written",
@@ -365,6 +391,8 @@ ALBUM.push(
   },
   read:"这一号的重心在材质而不是脸。"
     + "要突出织物时它最有效；要突出五官时换 AL-034。",
+  test:{ model:"待核实", pic:"examples/AL-038.png", size:"1024x1536",
+    note:"暖色硬光下刺绣织物的反光与厚重质感成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-039", cat:"明艳", status:"written",
@@ -390,6 +418,8 @@ ALBUM.push(
   },
   read:"这一号的「野」来自服装的动态（被风吹动）与赤足，"
     + "不是来自脸。想更野改 dress 面，别动骨相。",
+  test:{ model:"待核实", pic:"examples/AL-039.png", size:"1024x1536",
+    note:"黄昏侧逆光勾亮轮廓、地面长投影与飘逸素色织物成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-040", cat:"明艳", status:"written",
@@ -415,6 +445,8 @@ ALBUM.push(
   },
   read:"这一号是 AL-033 的柔和版 —— 同样明艳，但用光而不是对比色。"
     + "想要压迫感选 033，想要感染力选 040。",
+  test:{ model:"待核实", pic:"examples/AL-040.png", size:"1024x1536",
+    note:"强逆光暖轮廓光与暖色流动长裙的边缘发亮成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 /* ============ 041–048 · 古典 ============ */
@@ -441,6 +473,8 @@ ALBUM.push(
   },
   read:"这一号是古装剧的主角底。"
     + "眼尾下垂是关键 —— 东古典的含蓄靠它，不靠服装。",
+  test:{ model:"待核实", pic:"examples/AL-041.png", size:"1024x1536",
+    note:"冷色平光无明显方向与传统交领素色长衣的垂直线条成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-042", cat:"古典", status:"written",
@@ -466,6 +500,8 @@ ALBUM.push(
   },
   read:"这一号是 AL-041 的浓妆版 —— 骨相相近，红晕与装饰更重。"
     + "两者配同一套服装能出「素颜 vs 盛装」的对照。",
+  test:{ model:"待核实", pic:"examples/AL-042.png", size:"1024x1536",
+    note:"暖调柔光面部红晕与刺绣繁复华服的明亮色彩成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-043", cat:"古典", status:"written",
@@ -491,6 +527,8 @@ ALBUM.push(
   },
   read:"这一号配伦勃朗光最出效果。"
     + "换成均匀平光会丢掉它的层次感 —— 光是这一号的一半。",
+  test:{ model:"待核实", pic:"examples/AL-043.png", size:"1024x1536",
+    note:"伦勃朗光一侧亮一侧暗、过渡有层次与古典高领正装成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-044", cat:"古典", status:"written",
@@ -517,6 +555,8 @@ ALBUM.push(
   read:"这一号是「压场」的。"
     + "要注意它与 AL-036 的区别：这一号靠深色背景与受光集中，"
     + "036 靠全身与影棚分光。",
+  test:{ model:"待核实", pic:"examples/AL-044.png", size:"1024x1536",
+    note:"高窗斜射光集中受光、深色背景与华贵宫廷正装成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-045", cat:"古典", status:"written",
@@ -542,6 +582,8 @@ ALBUM.push(
   },
   read:"这一号的美感来自「不修饰」。"
     + "给它加华丽装饰会立刻破坏气质 —— 与 AL-044 完全相反。",
+  test:{ model:"待核实", pic:"examples/AL-045.png", size:"1024x1536",
+    note:"窗边冷调自然光的安静室内与素色长衫成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-046", cat:"古典", status:"written",
@@ -567,6 +609,8 @@ ALBUM.push(
   },
   read:"这一号靠下打光成立。"
     + "换成顶光会变成普通黑衣造型 —— 光位是它的结构。",
+  test:{ model:"待核实", pic:"examples/AL-046.png", size:"1024x1536",
+    note:"低位火光的眼下与颧骨下阴影、多层深色袍服的破损边缘成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-047", cat:"古典", status:"written",
@@ -592,6 +636,8 @@ ALBUM.push(
   },
   read:"这一号是「不落地」的美 —— 它不属于任何具体时代。"
     + "正因为如此，它配任何时代的主题都不违和，是最通用的古典号。",
+  test:{ model:"待核实", pic:"examples/AL-047.png", size:"1024x1536",
+    note:"高空柔光明亮通透、饱和不刺眼与浅色流动织物成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] },
 
 { num:"AL-048", cat:"古典", status:"written",
@@ -618,5 +664,7 @@ ALBUM.push(
   read:"这一号带负面气质（堕落/疲惫）。"
     + "用它之前确认主题真的需要这种调子 —— "
     + "它不适合中性或正向题材，会让整个画面被带沉。",
+  test:{ model:"待核实", pic:"examples/AL-048.png", size:"1024x1536",
+    note:"强烈顶光的眼窝阴影与破损褶皱深色衣物的戏剧化成立；等出图模型名后补 hit/miss" },
   fact:["形象为原创抽取"] }
 );

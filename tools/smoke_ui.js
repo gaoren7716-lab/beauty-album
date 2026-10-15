@@ -339,7 +339,7 @@ if (!jsdom) {
     && !/没有一张配图/.test(txt("#main")));
 
   /* ---- 画廊怎么展示图 ----
-     配图是从 1 张补到 48 张的过程，所以「看」与「扫」两个用途都要能达成：
+     配图是从 1 张逐批补到全量的过程，所以「看」与「扫」两个用途都要能达成：
      图区放大到接近竖构图原比例（横条裁竖图必然切掉额头和下巴），
      同时保留一屏塞满的密档。 */
   /* ---- 更多筛选折叠 ----
@@ -373,10 +373,14 @@ if (!jsdom) {
     !!picOnlyBtn && picOnlyBtn.textContent.indexOf(String(nWithPic)) >= 0,
     picOnlyBtn ? picOnlyBtn.textContent : "无");
   click(picOnlyBtn);
+  /* 画廊补满（每条编号都有图）之后，「只看有图」的結果就是全量 ——
+     「变少」不再成立，但「筛出来的每张都有图」「取消后恢复全量」
+     仍然拦得住假生效。没补满时「变少」照查。 */
   T("只看有图筛出生效", UI.S.picOnly
     && $$("#main .gcard").length === nWithPic
-    && $$("#main .gcard").length < N_PLATE,
-    $$("#main .gcard").length + " / " + N_PLATE);
+    && (nWithPic === N_PLATE || $$("#main .gcard").length < N_PLATE),
+    $$("#main .gcard").length + " / " + N_PLATE
+    + (nWithPic === N_PLATE ? "（画廊已补满，筛选即全量）" : ""));
   T("筛出来的每张卡都有配图位", $$("#main .gcard .gpic").length === nWithPic);
   click($('#main [data-act="gpiconly"]'));
   T("取消筛选后恢复全量", $$("#main .gcard").length === N_PLATE);
